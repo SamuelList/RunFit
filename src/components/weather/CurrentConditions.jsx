@@ -1,6 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { MapPin, Gauge, RefreshCw, Info, Sunrise as SunriseIcon, Sunset as SunsetIcon } from "lucide-react";
+import { MapPin, Gauge, Sunrise as SunriseIcon, Sunset as SunsetIcon } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent, SegmentedControl } from "../ui";
 
 /**
@@ -23,11 +23,9 @@ import { Card, CardHeader, CardTitle, CardContent, SegmentedControl } from "../u
  * @param {string} props.gender - User's gender for theming (Female/Male)
  * @param {Object} props.displayedScoreProps - Score display properties
  * @param {string} props.error - Error message if any
- * @param {string} props.runType - Current run type (easy/workout/long)
- * @param {string} props.activeOption - Active run type option
+ * @param {string} props.runType - Current run type (easy/workout/longRun)
  * @param {Function} props.setShowInsights - Function to show insights modal
  * @param {Function} props.setRunType - Function to set run type
- * @param {Function} props.setActiveOption - Function to set active option
  * @param {Function} props.handleLocationRefresh - Function to refresh location
  * @param {Object} props.cardVariants - Framer Motion card animation variants
  */
@@ -42,175 +40,185 @@ const CurrentConditions = ({
   displayedScoreProps,
   error,
   runType,
-  activeOption,
   setShowInsights,
   setRunType,
-  setActiveOption,
   handleLocationRefresh,
   cardVariants
 }) => {
   return (
     <motion.div variants={cardVariants}>
-      <Card>
-        <CardHeader className={`bg-gradient-to-br ${gender === "Female" ? "from-pink-500 to-pink-600" : "from-sky-500 to-blue-600"} text-white`}>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Gauge className="h-5 w-5" />
-            Run Controls
+      <Card className="overflow-hidden">
+        <CardHeader className={`bg-gradient-to-br py-3 ${
+          gender === "Female"
+            ? "from-pink-400/10 via-pink-500/10 to-pink-400/10 dark:from-pink-400/20 dark:via-pink-500/20 dark:to-pink-400/20"
+            : "from-sky-500/10 via-blue-500/10 to-indigo-500/10 dark:from-sky-500/20 dark:via-blue-500/20 dark:to-indigo-500/20"
+        }`}>
+          <CardTitle className="flex items-center justify-between text-base">
+            <span className="flex items-center gap-2">
+              <div className={`flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br ${
+                gender === "Female"
+                  ? "from-pink-400 to-pink-500 dark:from-pink-400 dark:to-pink-500"
+                  : "from-blue-500 to-indigo-600 dark:from-blue-400 dark:to-indigo-500"
+              }`}>
+                <Gauge className="h-4 w-4 text-white" />
+              </div>
+              Run Controls
+            </span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-6 lg:grid-cols-3">
-            {/* Left Section: Location & Score */}
-            <div className="space-y-4 lg:col-span-2">
-              {/* Location Display */}
-              <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-gradient-to-br from-white/60 to-white/40 dark:from-slate-900/60 dark:to-slate-900/40 p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <MapPin className="h-5 w-5 flex-shrink-0 text-gray-600 dark:text-slate-300" />
-                    <span className="text-sm font-medium text-gray-700 dark:text-slate-200 truncate">
-                      {place ? formattedPlaceName : "Loading..."}
-                    </span>
-                    {debugActive && (
-                      <span className="px-2 py-0.5 rounded text-xs font-semibold bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 flex-shrink-0">
-                        DEBUG
-                      </span>
-                    )}
+        <CardContent className="p-0">
+          <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-gray-200 dark:divide-slate-800">
+            
+            {/* Location & Score Section */}
+            <div className="p-5 lg:col-span-2">
+              <div className="flex flex-wrap items-start gap-3 mb-4">
+                <div className="flex-1 min-w-[200px]">
+                  <div className="flex items-center gap-2 mb-1">
+                    <MapPin className="h-4 w-4 text-slate-400" />
+                    <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Location</span>
                   </div>
                   <motion.button
                     onClick={handleLocationRefresh}
                     disabled={loading}
-                    className="flex-shrink-0 ml-2 p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800 disabled:opacity-50"
-                    whileHover={{ rotate: 180 }}
-                    whileTap={{ scale: 0.9 }}
+                    className="font-semibold text-lg text-gray-900 dark:text-slate-100 hover:text-sky-600 dark:hover:text-sky-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-left group"
+                    title={`${place?.name} — Tap to refresh weather`}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.95 }}
                   >
-                    <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                    <span className="inline-flex items-center gap-1.5">
+                      {formattedPlaceName || "Loading…"}
+                      <svg className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    </span>
                   </motion.button>
+                  {debugActive && (
+                    <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:border-amber-500/50 dark:bg-amber-500/10 dark:text-amber-300">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                      Debug scenario
+                    </span>
+                  )}
                 </div>
+                
+                {/* Condition Badge with Performance Details */}
+                {derived && condition && (
+                  <motion.div
+                    className="group relative inline-block"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.2, duration: 0.3 }}
+                  >
+                    <span 
+                      className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium whitespace-normal sm:whitespace-nowrap shrink-0 cursor-help ${condition.badgeClass}`}
+                      title="Hover for performance details"
+                    >
+                      {condition.text}
+                    </span>
+                    
+                    {/* Tooltip with performance and action details */}
+                    {condition.performance && condition.action && (
+                      <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute z-50 left-0 top-full mt-2 w-80 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-xl">
+                        <div className="space-y-3">
+                          <div>
+                            <div className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                              Performance Impact
+                            </div>
+                            <div className="text-sm text-gray-700 dark:text-slate-300">
+                              {condition.performance}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-1">
+                              Recommended Actions
+                            </div>
+                            <div className="text-sm text-gray-700 dark:text-slate-300">
+                              {condition.action}
+                            </div>
+                          </div>
+                        </div>
+                        {/* Tooltip arrow */}
+                        <div className="absolute -top-1 left-4 h-2 w-2 rotate-45 border-l border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800" />
+                      </div>
+                    )}
+                  </motion.div>
+                )}
               </div>
 
-              {/* Condition Badge */}
-              {derived && condition && (
-                <motion.div
-                  className="group relative cursor-help rounded-xl border border-gray-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 p-4"
-                  whileHover={{ scale: 1.02 }}
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl text-2xl"
-                      style={{
-                        background: `linear-gradient(135deg, ${condition.tone?.bgStart || "#fff"}, ${condition.tone?.bgEnd || "#fff"})`
-                      }}
+              {/* Score & Twilight Row */}
+              {derived && (
+                <div className="flex flex-wrap items-center gap-3">
+                  <motion.button 
+                    onClick={() => setShowInsights(true)}
+                    className="flex items-center gap-2 rounded-xl border border-gray-200/60 dark:border-slate-700 bg-gradient-to-br from-white to-gray-50/50 dark:from-slate-800/60 dark:to-slate-900/60 px-4 py-3 shadow-sm hover:border-sky-300 dark:hover:border-sky-600 transition-colors cursor-pointer"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    title="Click to view Run Score Breakdown"
+                  >
+                    <div className="flex flex-col">
+                      <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Score</span>
+                      <span className="text-3xl font-extrabold" style={displayedScoreProps?.tone?.textStyle}>{displayedScoreProps ? displayedScoreProps.score : '--'}</span>
+                    </div>
+                  </motion.button>
+                  
+                  {derived.twilight && (
+                    <motion.div 
+                      className="flex items-center gap-2 rounded-xl border border-gray-200/60 dark:border-slate-700 bg-white/80 dark:bg-slate-800/60 px-4 py-3"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.4 }}
                     >
-                      {condition.emoji}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-lg font-bold text-gray-800 dark:text-slate-100">
-                        {condition.label}
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-500/20 dark:to-orange-500/20">
+                        {derived.twilight.icon === "sunset" ? (
+                          <SunsetIcon className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                        ) : (
+                          <SunriseIcon className="h-5 w-5 text-sky-500 dark:text-sky-400" />
+                        )}
                       </div>
-                      <div className="text-xs text-gray-600 dark:text-slate-400">
-                        Current Conditions
-                      </div>
-                    </div>
-                  </div>
-                  {/* Hover Tooltip */}
-                  <div className="pointer-events-none absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full opacity-0 transition-all group-hover:opacity-100 group-hover:-translate-y-full z-50">
-                    <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm px-4 py-3 shadow-xl max-w-xs">
-                      <div className="text-sm font-semibold text-gray-800 dark:text-slate-100 mb-1">
-                        {condition.performance}
-                      </div>
-                      <div className="text-xs text-gray-600 dark:text-slate-300">
-                        {condition.action}
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-
-              {/* Score Display Button */}
-              {displayedScoreProps && (
-                <motion.button
-                  onClick={() => setShowInsights(true)}
-                  className="w-full group relative overflow-hidden rounded-xl border border-gray-200 dark:border-slate-800 bg-gradient-to-br from-white/60 to-white/40 dark:from-slate-900/60 dark:to-slate-900/40 p-4"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-left">
-                      <div className="text-xs text-gray-600 dark:text-slate-400 mb-1">
-                        Current Score
-                      </div>
-                      <div className="text-4xl font-extrabold" style={displayedScoreProps.tone?.textStyle}>
-                        {displayedScoreProps.score}
-                      </div>
-                      <div className="text-xs font-medium text-gray-500 dark:text-slate-400">
-                        {displayedScoreProps.label}
-                      </div>
-                    </div>
-                    <div className="text-gray-400 dark:text-slate-500">
-                      <Info className="h-6 w-6" />
-                    </div>
-                  </div>
-                </motion.button>
-              )}
-
-              {/* Twilight Info */}
-              {derived?.twilight && (
-                <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 p-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="flex items-center gap-2">
-                      <SunriseIcon className="h-4 w-4 text-orange-500" />
-                      <div>
-                        <div className="text-xs text-gray-500 dark:text-slate-400">Sunrise</div>
-                        <div className="text-sm font-semibold text-gray-800 dark:text-slate-100">
-                          {derived.twilight.sunrise}
+                      <div className="flex flex-col">
+                        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{derived.twilight.label}</span>
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-sm font-bold text-gray-900 dark:text-slate-100">{derived.twilight.in}</span>
+                          <span className="text-xs text-slate-400">({derived.twilight.at})</span>
                         </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <SunsetIcon className="h-4 w-4 text-orange-500" />
-                      <div>
-                        <div className="text-xs text-gray-500 dark:text-slate-400">Sunset</div>
-                        <div className="text-sm font-semibold text-gray-800 dark:text-slate-100">
-                          {derived.twilight.sunset}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                    </motion.div>
+                  )}
                 </div>
               )}
             </div>
 
-            {/* Right Section: Preferences */}
-            <div className={`rounded-xl border border-gray-200 dark:border-slate-800 bg-gradient-to-br ${gender === "Female" ? "from-pink-50/80 to-pink-100/60 dark:from-pink-950/20 dark:to-pink-900/10" : "from-sky-50/80 to-blue-100/60 dark:from-sky-950/20 dark:to-blue-900/10"} p-4`}>
-              <div className="mb-3">
-                <div className="text-sm font-semibold text-gray-700 dark:text-slate-200 mb-1">
-                  Run Type
-                </div>
-                <div className="text-xs text-gray-600 dark:text-slate-400">
-                  Select your planned workout
+            {/* Preferences Section */}
+            <div className="p-5 bg-gradient-to-br from-gray-50/50 to-white dark:from-slate-900/50 dark:to-slate-900">
+              <div className="space-y-3">
+                <div className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 p-3">
+                  <div className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-600 dark:text-slate-400">Run Type</div>
+                  <SegmentedControl
+                    value={runType}
+                    onChange={setRunType}
+                    options={[
+                      { label: "Easy Run", value: "easy" },
+                      { label: "Hard Workout", value: "workout" },
+                      { label: "Long Run", value: "longRun" },
+                    ]}
+                  />
                 </div>
               </div>
-              <SegmentedControl
-                options={[
-                  { value: "easy", label: "Easy Run" },
-                  { value: "workout", label: "Hard Workout" },
-                  { value: "long", label: "Long Run" }
-                ]}
-                value={activeOption}
-                onChange={(val) => {
-                  setRunType(val);
-                  setActiveOption(val);
-                }}
-                gender={gender}
-              />
             </div>
           </div>
-
-          {/* Error Message */}
+          
           {error && (
-            <div className="rounded-lg border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">
-              {error}
-            </div>
+            <motion.div 
+              className="border-t border-gray-200 dark:border-slate-800 bg-red-50 dark:bg-red-500/10 px-5 py-3"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <p className="text-sm font-medium text-red-600 dark:text-red-400">{error}</p>
+            </motion.div>
           )}
         </CardContent>
       </Card>
