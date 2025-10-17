@@ -1,3 +1,5 @@
+import React from 'react';
+
 /**
  * DebugModal Component
  * 
@@ -9,3 +11,9 @@
 // - API response inspection
 // - Calculation breakdowns
 // - State inspection
+
+const DebugModal = () => {
+  return null;
+};
+
+export default DebugModal;

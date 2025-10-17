@@ -2,13 +2,34 @@ import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MapPin, Thermometer, Droplets, Wind, CloudRain, Sun, Hand, Info, Flame, Sunrise as SunriseIcon, Sunset as SunsetIcon, Settings as SettingsIcon, Crosshair, Moon, X, TrendingUp, Cloud, CloudFog, UserRound, Calendar, Lightbulb, Activity, Clock, Gauge } from "lucide-react";
 import { RadialBarChart, RadialBar, PolarAngleAxis } from "recharts";
+
+// Utils
 import { computeSunEvents } from "./utils/solar";
 import { GEAR_INFO, GEAR_ICONS } from "./utils/gearData";
-import { Card, CardHeader, CardTitle, CardContent, Button, Input, Label, Switch, SegmentedControl } from "./components/ui";
 import { APP_VERSION, DEFAULT_PLACE, DEFAULT_SETTINGS, FORECAST_ALERT_META, nominatimHeaders } from "./utils/constants";
 import { clamp, round1, msToMph, mmToInches, cToF, fToC, computeFeelsLike, blendWeather, getCurrentHourIndex } from "./utils/helpers";
 import { computeScoreBreakdown, calculateRoadConditions, makeApproachTips, calculateWBGT } from "./utils/runScore";
+
+// UI Components
+import { Card, CardHeader, CardTitle, CardContent, Button, Input, Label, Switch, SegmentedControl } from "./components/ui";
+
+// Layout Components
+import { Header, LoadingSplash } from "./components/layout";
+
+// Weather Components
+import { CurrentConditions, WeatherGauge, WeatherMetrics, ForecastCard } from "./components/weather";
+
+// Running Components
+import { OutfitRecommendation, BestRunTimeCard } from "./components/running";
+
+// Insights Components
+import { InsightsModal } from "./components/insights";
+
+// Night Components
 import { NightRunningCard } from "./components/night";
+
+// Modal Components
+import { HourBreakdownModal } from "./components/modals";
 
 // iOS-specific styles for safe area and native feel
 if (typeof document !== 'undefined') {
@@ -512,242 +533,6 @@ const ProgressBar = ({ pct }) => (
     <div className="h-2 rounded-full bg-pink-500" style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
   </div>
 );
-
-const ForecastCard = ({ derived, getDisplayedScore, runnerBoldness, className = "" }) => (
-  <Card className={className}>
-    <CardHeader>
-      <CardTitle className="flex items-center justify-between">
-        <span className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 dark:from-violet-600 dark:to-purple-700">
-            <TrendingUp className="h-4 w-4 text-white" />
-          </div>
-          6-hour outlook
-        </span>
-        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Next 6 hours</span>
-      </CardTitle>
-    </CardHeader>
-    <CardContent>
-      {!derived ? (
-        <div className="space-y-2.5">
-          {Array.from({ length: 6 }).map((_, idx) => (
-            <div key={idx} className="h-20 w-full animate-pulse rounded-xl bg-slate-200/60 dark:bg-slate-800/40" />
-          ))}
-        </div>
-      ) : derived.forecast.length ? (
-        <div className="space-y-2.5">
-          {derived.forecast.slice(0, 6).map((slot, idx) => {
-            const isNow = idx === 0;
-            // Visual display values (adjusted by runner boldness)
-            const displaySlotScore = typeof slot.score === 'number' ? getDisplayedScore(slot.score, runnerBoldness) : slot.score;
-            const displaySlotLabel = scoreLabel(displaySlotScore);
-            const displaySlotTone = scoreBasedTone(displaySlotScore);
-
-            return (
-              <motion.button
-                key={slot.time}
-                onClick={() => {
-                  if (typeof derived.onHourClick === 'function') {
-                    derived.onHourClick(slot);
-                  }
-                }}
-                className={`group relative overflow-hidden rounded-xl border transition-all duration-300 hover:shadow-lg w-full text-left cursor-pointer ${
-                  isNow 
-                    ? 'border-violet-300/60 bg-gradient-to-br from-violet-50 via-purple-50/80 to-fuchsia-50/60 dark:border-violet-500/40 dark:from-violet-500/15 dark:via-purple-500/10 dark:to-fuchsia-500/5'
-                    : 'border-gray-200/50 bg-white/80 dark:border-slate-700/60 dark:bg-slate-900/40 hover:border-violet-200 dark:hover:border-violet-500/30'
-                }`}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.05 }}
-                whileHover={{ scale: 1.02, x: 4 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                {/* Accent bar */}
-                <div 
-                  className="absolute left-0 top-0 h-full w-1 transition-all duration-300 group-hover:w-1.5"
-                  style={{ background: displaySlotTone.fillColor }}
-                />
-                
-                {/* Content */}
-                <div className="flex items-center gap-3 p-3 pl-4">
-                  {/* Time and Score */}
-                  <div className="flex min-w-[100px] flex-col">
-                    <div className={`text-xs font-bold uppercase tracking-wider ${
-                      isNow 
-                        ? 'text-violet-600 dark:text-violet-400' 
-                        : 'text-slate-500 dark:text-slate-400'
-                    }`}>
-                      {slot.timeLabel}
-                    </div>
-                    <div className="mt-0.5 flex items-baseline gap-1.5">
-                      <span className="text-3xl font-bold leading-none" style={displaySlotTone.textStyle}>
-                        {displaySlotScore}
-                      </span>
-                      <span className="text-xs font-medium text-slate-400 dark:text-slate-500">/ 100</span>
-                    </div>
-                  </div>
-
-                  {/* Divider */}
-                  <div className="h-12 w-px bg-gradient-to-b from-transparent via-gray-300 to-transparent dark:via-slate-600" />
-
-                  {/* Badge and Temp */}
-                  <div className="flex flex-1 flex-col items-start gap-1.5">
-                    <span 
-                      className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold shadow-sm" 
-                      style={displaySlotTone.badgeStyle}
-                    >
-                      {displaySlotLabel.text}
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <Thermometer className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
-                      <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                        {slot.apparentDisplay ?? "—"}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Alerts */}
-                  {slot.alerts?.length ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {slot.alerts.map((alert, alertIdx) => {
-                        const meta = FORECAST_ALERT_META[alert.type];
-                        if (!meta) return null;
-                        const Icon = meta.Icon;
-                        return (
-                          <div
-                            key={`${slot.time}-${alert.type}-${alertIdx}`}
-                            className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${meta.badgeClass}`}
-                            title={alert.message}
-                          >
-                            <Icon className={`h-3 w-3 ${meta.iconClass}`} />
-                            <span className="hidden sm:inline">{meta.label}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-                </div>
-
-                {/* Hover glow effect */}
-                  <div 
-                    className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-                    style={{
-                      background: `radial-gradient(circle at left center, ${displaySlotTone.fillColor}15 0%, transparent 70%)`
-                    }}
-                  />
-              </motion.button>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-8 dark:border-slate-700 dark:bg-slate-800/30">
-          <Cloud className="h-10 w-10 text-slate-400 dark:text-slate-600" />
-          <p className="mt-2 text-sm font-medium text-slate-500 dark:text-slate-400">No forecast data available</p>
-        </div>
-      )}
-    </CardContent>
-  </Card>
-);
-
-const BestRunTimeCard = ({ derived, unit, getDisplayedScore, runnerBoldness, className = "" }) => {
-  if (!derived?.bestRunTimes?.today && !derived?.bestRunTimes?.tomorrow) return null;
-  
-  const { today, tomorrow } = derived.bestRunTimes;
-  
-  const renderTimeSlot = (slot, dayLabel) => {
-    const { time, score, apparentF, wind, precipProb, uv, isNow } = slot;
-    const date = new Date(time);
-    const timeStr = isNow ? 'Now' : date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    
-  const displayTemp = unit === "F" ? Math.round(apparentF) : Math.round((apparentF - 32) * 5 / 9);
-  // Visual display values (adjusted by boldness)
-  const displayScore = typeof score === 'number' ? getDisplayedScore(score, runnerBoldness) : score;
-  const label = scoreLabel(displayScore);
-  const tone = scoreBasedTone(displayScore);
-    
-  const highlights = [];
-  if (displayScore >= 80) highlights.push("Excellent conditions");
-  else if (displayScore >= 65) highlights.push("Great conditions");
-  else if (displayScore >= 50) highlights.push("Good conditions");
-  else highlights.push("Best available window");
-    
-    if (precipProb < 20) highlights.push("low precip risk");
-    if (wind < 10) highlights.push("calm winds");
-    if (uv < 3) highlights.push("low UV");
-    else if (uv >= 6) highlights.push("high UV - sunscreen recommended");
-    
-    const isToday = dayLabel === "Today";
-    const bgClass = isToday
-      ? "border-emerald-200/60 bg-gradient-to-br from-emerald-50/80 to-green-50/60 dark:border-emerald-500/30 dark:from-emerald-500/10 dark:to-green-500/5"
-      : "border-sky-200/60 bg-gradient-to-br from-sky-50/80 to-blue-50/60 dark:border-sky-500/30 dark:from-sky-500/10 dark:to-blue-500/5";
-    
-    const textClass = isToday
-      ? "text-emerald-700 dark:text-emerald-300"
-      : "text-sky-700 dark:text-sky-300";
-      
-    const mainTextClass = isToday
-      ? "text-emerald-900 dark:text-emerald-100"
-      : "text-sky-900 dark:text-sky-100";
-      
-    const badgeClass = isToday
-      ? "border-emerald-200 bg-white/60 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200"
-      : "border-sky-200 bg-white/60 text-sky-800 dark:border-sky-500/40 dark:bg-sky-500/10 dark:text-sky-200";
-    
-    return (
-      <div className={`rounded-2xl border p-4 ${bgClass}`}>
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <div className={`text-xs font-medium uppercase tracking-wide ${textClass}`}>
-              {dayLabel}
-            </div>
-            <div className={`mt-1 text-3xl font-bold ${mainTextClass}`}>
-              {timeStr}
-            </div>
-            <div className="mt-2 text-sm text-gray-700 dark:text-slate-300">
-              {displayTemp}°{unit} feels like • {highlights[0]}
-            </div>
-          </div>
-          <div className="flex flex-col items-end gap-1">
-            <div className="text-4xl font-bold" style={tone.textStyle}>
-                {displayScore}
-              </div>
-            <span className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium" style={tone.badgeStyle}>
-              {label.text}
-            </span>
-          </div>
-        </div>
-        {highlights.length > 1 && (
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {highlights.slice(1).map((highlight, idx) => (
-              <span key={idx} className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${badgeClass}`}>
-                {highlight}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
-  
-  return (
-    <Card className={className}>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <TrendingUp className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-          <span>Best times to run</span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {today && renderTimeSlot(today, "Today")}
-        {tomorrow && renderTimeSlot(tomorrow, "Tomorrow")}
-        {!today && !tomorrow && (
-          <div className="rounded-lg border border-slate-200/60 bg-slate-50/60 p-3 text-center text-xs text-slate-600 dark:border-slate-700/60 dark:bg-slate-800/40 dark:text-slate-400">
-            No optimal run times found for today or tomorrow
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-};
 
 /*
   RunFit Wardrobe — Single-file React (App.jsx)
@@ -1503,7 +1288,7 @@ export default function App() {
   const [runType, setRunType] = useState("easy"); // Always reset to easy on page load
   const [coldHands, setColdHands] = useState(initialSettings.coldHands);
   const [gender, setGender] = useState(initialSettings.gender);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start with loading true for initial load
   const [error, setError] = useState("");
   const [wx, setWx] = useState(null);
   const [customTempEnabled, setCustomTempEnabled] = useState(initialSettings.customTempEnabled);
@@ -1976,7 +1761,7 @@ export default function App() {
   };
 
   const tryGeolocate = async () => {
-    setLoading(true); setError("");
+    setError("");
     try {
       if (!("geolocation" in navigator) || !window.isSecureContext) { await ipLocationFallback(); return; }
       const pos = await new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 }));
@@ -1986,12 +1771,12 @@ export default function App() {
       const p = { name: "Current location", lat: latitude, lon: longitude, source: 'gps' };
       setPlace(p); 
       setQuery("Current location");
-      fetchWeather(p, unit); // Don't await, let it run
+      await fetchWeather(p, unit); // Wait for weather to load
 
       // Now, try to get a better name without blocking the UI
       reverseGeocode(latitude, longitude);
 
-    } catch (err) { await ipLocationFallback(); } finally { setLoading(false); }
+    } catch (err) { await ipLocationFallback(); }
   };
 
   useEffect(() => { tryGeolocate(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -5266,180 +5051,33 @@ export default function App() {
       </AnimatePresence>
 
       {/* Hour Breakdown Modal */}
+      <HourBreakdownModal
+        isOpen={showHourBreakdown}
+        onClose={() => setShowHourBreakdown(false)}
+        hourData={selectedHourData}
+        hourDisplay={selectedHourDisplay}
+        getDisplayedScore={getDisplayedScore}
+        runnerBoldness={runnerBoldness}
+        variants={{
+          backdropVariants,
+          modalVariants,
+          staggerContainer,
+          listItemVariants
+        }}
+      />
+
+      {/* Loading Splash */}
       <AnimatePresence>
-        {showHourBreakdown && selectedHourData && (
-          <motion.div 
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" 
-            onClick={() => setShowHourBreakdown(false)}
-            variants={backdropVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-          >
-            <motion.div 
-              className="relative w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-2xl border border-slate-700 bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-950 shadow-2xl" 
-              onClick={(e) => e.stopPropagation()}
-              variants={modalVariants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-            >
-            {/* Header with Score */}
-            <div className="sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm">
-              <div className="flex items-center justify-between px-6 py-4">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-slate-100">
-                      {selectedHourData.timeLabel} Performance Score
-                    </h2>
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <div className="text-4xl font-extrabold" style={selectedHourDisplay?.tone?.textStyle}>
-                      {selectedHourDisplay ? selectedHourDisplay.score : (selectedHourData.score ? getDisplayedScore(selectedHourData.score, runnerBoldness) : '--')}
-                    </div>
-                    <div className="text-sm font-medium text-slate-500 dark:text-slate-400">/100</div>
-                  </div>
-                </div>
-                <motion.button 
-                  onClick={() => setShowHourBreakdown(false)} 
-                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                  whileHover={{ scale: 1.1, rotate: 90 }}
-                  whileTap={{ scale: 0.9 }}
-                >
-                  <X className="h-5 w-5" />
-                </motion.button>
-              </div>
-              {/* Score bar */}
-              <div className="px-6 pb-4">
-                  <div className="relative h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-slate-800">
-                    <motion.div 
-                    className="h-full rounded-full"
-                    style={selectedHourDisplay?.tone?.badgeStyle}
-                    initial={{ width: 0 }}
-                    animate={{ width: `${selectedHourDisplay?.score ?? (selectedHourData.score ? getDisplayedScore(selectedHourData.score, runnerBoldness) : 0)}%` }}
-                    transition={{ duration: 1, ease: "easeOut" }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Content */}
-            <div className="overflow-y-auto p-6" style={{ maxHeight: 'calc(90vh - 180px)' }}>
-              <motion.div 
-                className="space-y-6"
-                variants={staggerContainer}
-                initial="initial"
-                animate="animate"
-              >
-                {/* Weather Summary */}
-                <div className="flex flex-wrap gap-4 items-center p-4 rounded-xl bg-white/60 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700">
-                  <div className="flex items-center gap-2">
-                    <Thermometer className="h-4 w-4 text-slate-500" />
-                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                      Feels like {selectedHourData.apparentDisplay}
-                    </span>
-                  </div>
-                  {selectedHourData.weatherData.windMph > 0 && (
-                    <div className="flex items-center gap-2">
-                      <Wind className="h-4 w-4 text-slate-500" />
-                      <span className="text-sm text-slate-600 dark:text-slate-300">
-                        {Math.round(selectedHourData.weatherData.windMph)} mph wind
-                      </span>
-                    </div>
-                  )}
-                  {selectedHourData.weatherData.humidity > 0 && (
-                    <div className="flex items-center gap-2">
-                      <Droplets className="h-4 w-4 text-slate-500" />
-                      <span className="text-sm text-slate-600 dark:text-slate-300">
-                        {Math.round(selectedHourData.weatherData.humidity)}% humidity
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Factor Cards Grid */}
-                <div>
-                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
-                    {selectedHourData.breakdown.useWBGT ? 'WBGT Calculation Factors' : 'UTCI Calculation Factors'}
-                  </h3>
-                  <motion.div 
-                    className="grid grid-cols-1 md:grid-cols-2 gap-3"
-                    variants={staggerContainer}
-                  >
-                    {selectedHourData.breakdown.parts.map((part) => {
-                      const impactColors = {
-                        high: 'border-rose-200/60 dark:border-rose-500/30 bg-rose-50/60 dark:bg-rose-500/10',
-                        medium: 'border-amber-200/60 dark:border-amber-500/30 bg-amber-50/60 dark:bg-amber-500/10',
-                        low: 'border-emerald-200/60 dark:border-emerald-500/30 bg-emerald-50/60 dark:bg-emerald-500/10'
-                      };
-                      const impactBadgeColors = {
-                        high: 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-700',
-                        medium: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700',
-                        low: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
-                      };
-                      
-                      return (
-                        <motion.div 
-                          key={part.key} 
-                          className={`rounded-xl border p-4 ${impactColors[part.impact]}`}
-                          variants={listItemVariants}
-                          whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
-                        >
-                          <div className="flex items-start justify-between gap-3 mb-3">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-sm font-bold text-gray-900 dark:text-slate-100">{part.label}</span>
-                                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${impactBadgeColors[part.impact]}`}>
-                                  {part.impact} impact
-                                </span>
-                              </div>
-                              <div className="text-2xl font-extrabold text-gray-900 dark:text-slate-100">
-                                {part.value}
-                              </div>
-                              {part.dewPoint && (
-                                <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                                  Dew point: {part.dewPoint}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <p className="text-xs leading-relaxed text-gray-700 dark:text-slate-300">{part.description}</p>
-                        </motion.div>
-                      );
-                    })}
-                  </motion.div>
-                  
-                  {/* Result Summary */}
-                  {selectedHourData.breakdown.result && (
-                    <motion.div 
-                      className="mt-4 rounded-xl border-2 border-violet-300 dark:border-violet-600 bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40 p-4"
-                      variants={listItemVariants}
-                    >
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <div className="text-sm font-bold text-violet-900 dark:text-violet-200 mb-1">
-                            {selectedHourData.breakdown.result.label}
-                          </div>
-                          <div className="text-3xl font-extrabold text-violet-700 dark:text-violet-300">
-                            {selectedHourData.breakdown.result.value}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xs text-violet-600 dark:text-violet-400 mb-1">Impact on Score</div>
-                          <div className="text-2xl font-bold text-violet-900 dark:text-violet-200">
-                            {selectedHourData.breakdown.result.description.match(/Score: (\d+)/)?.[1] || selectedHourDisplay?.score || '--'}/100
-                          </div>
-                        </div>
-                      </div>
-                      <p className="mt-3 text-xs leading-relaxed text-violet-800 dark:text-violet-300">{selectedHourData.breakdown.result.description}</p>
-                    </motion.div>
-                  )}
-                </div>
-              </motion.div>
-            </div>
-          </motion.div>
-        </motion.div>
+        {loading && (
+          <LoadingSplash 
+            isLoading={loading} 
+            progress={wx ? 100 : place ? 70 : 30} 
+            stage={
+              wx ? "Loading complete" : 
+              place ? "Fetching weather data..." : 
+              "Getting your location..."
+            } 
+          />
         )}
       </AnimatePresence>
     </div>

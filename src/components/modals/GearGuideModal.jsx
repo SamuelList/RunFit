@@ -1,3 +1,5 @@
+import React from 'react';
+
 /**
  * GearGuideModal Component
  * 
@@ -9,3 +11,9 @@
 // - Item descriptions
 // - Temperature ranges
 // - Usage recommendations
+
+const GearGuideModal = () => {
+  return null;
+};
+
+export default GearGuideModal;

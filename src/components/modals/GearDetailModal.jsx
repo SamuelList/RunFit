@@ -1,3 +1,5 @@
+import React from 'react';
+
 /**
  * GearDetailModal Component
  * 
@@ -9,3 +11,9 @@
 // - Full description
 // - Temperature recommendations
 // - Usage tips
+
+const GearDetailModal = () => {
+  return null;
+};
+
+export default GearDetailModal;

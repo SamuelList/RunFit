@@ -1,3 +1,5 @@
+import React from 'react';
+
 /**
  * SettingsModal Component
  * 
@@ -10,3 +12,9 @@
 // - Cold hands toggle
 // - Custom temperature input
 // - Theme settings
+
+const SettingsModal = () => {
+  return null;
+};
+
+export default SettingsModal;
