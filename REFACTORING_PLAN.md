@@ -109,7 +109,7 @@ src/
       ApproachTips.jsx          // Running tips
       RoadConditions.jsx        // Surface warnings
       
-    night/
+    night/ DONE!
       NightRunningCard.jsx      // Moon phase & visibility
       MoonPhaseVisual.jsx       // SVG moon display
       VisibilityMetrics.jsx     // Clarity calculations

@@ -83,9 +83,9 @@ export function ForecastCard({ derived, getDisplayedScore, runnerBoldness, class
                       </div>
                       <div className="mt-0.5 flex items-baseline gap-1.5">
                         <span className="text-3xl font-bold leading-none" style={displaySlotTone.textStyle}>
-                          {displaySlotScore}
+                          {Math.max(1, Math.round(displaySlotScore / 10))}
                         </span>
-                        <span className="text-xs font-medium text-slate-400 dark:text-slate-500">/ 100</span>
+                        <span className="text-xs font-medium text-slate-400 dark:text-slate-500">/ 10</span>
                       </div>
                     </div>
 
