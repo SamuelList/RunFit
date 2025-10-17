@@ -4,10 +4,22 @@ import { MapPin, Thermometer, Droplets, Wind, CloudRain, Sun, Hand, Info, Flame,
 import { RadialBarChart, RadialBar, PolarAngleAxis } from "recharts";
 import { computeSunEvents } from "./utils/solar";
 import { GEAR_INFO, GEAR_ICONS } from "./utils/gearData";
-import { Card, CardHeader, CardTitle, CardContent, Button, Input, Label, Switch, SegmentedControl } from "./components/ui";
-import { APP_VERSION, DEFAULT_PLACE, DEFAULT_SETTINGS, FORECAST_ALERT_META, nominatimHeaders } from "./utils/constants";
-import { clamp, round1, msToMph, mmToInches, cToF, fToC, computeFeelsLike, blendWeather, getCurrentHourIndex } from "./utils/helpers";
-import { computeScoreBreakdown, calculateRoadConditions, makeApproachTips, calculateWBGT } from "./utils/runScore";
+import { Card, CardHeader, CardTitle, CardContent, Button, Input, Label, Switch, SegmentedControl, ProgressBar, Toast } from "./components/ui";
+import { ForecastCard } from "./components/weather/ForecastCard";
+import { BestRunTimeCard } from "./components/running/BestRunTimeCard";
+import OutfitRecommendation from "./components/running/OutfitRecommendation";
+import CurrentConditions from "./components/weather/CurrentConditions";
+import WeatherGauge from "./components/weather/WeatherGauge";
+import WeatherMetrics from "./components/weather/WeatherMetrics";
+import { Header, AppShell, LoadingSplash } from "./components/layout";
+import { APP_VERSION, DEFAULT_PLACE, DEFAULT_SETTINGS, FORECAST_ALERT_META } from "./utils/constants";
+import { clamp, round1 } from "./utils/helpers";
+import { fetchWeather as fetchWeatherService } from "./services/weatherApi";
+import { reverseGeocode as reverseGeocodeService, searchCity as searchCityService, ipLocationFallback as ipLocationService } from "./services/geocodingApi";
+import { computeScoreBreakdown, calculateRoadConditions, makeApproachTips } from "./utils/runScore";
+import { getRunningCondition } from "./utils/conditions";
+import { scoreLabel, scoreBasedTone, scoreTone, dewPointF, computeRunningScore } from "./utils/scoring";
+import { handsLevelFromGear, handsLabel, handsTone, chooseSocks, calculateEffectiveTemp } from "./utils/outfit/outfitHelpers";
 
 // iOS-specific styles for safe area and native feel
 if (typeof document !== 'undefined') {
@@ -74,132 +86,8 @@ if (typeof document !== 'undefined') {
   document.head.appendChild(style);
 }
 
-// --- Running Condition Indicator ---
-// Get running condition assessment based on WBGT (warm) or feels-like temp (cool)
-// Returns performance-focused guidance with research-backed thresholds
-function getRunningCondition(tempF, isWBGT = false) {
-  // Warm weather (using WBGT): Research-based heat stress zones
-  if (isWBGT) {
-    // WBGT >82°F: Extreme Heat - Danger (Black Flag)
-    if (tempF > 82) {
-      return { 
-        text: "Extreme danger — races cancelled, training strongly discouraged", 
-        textClass: "text-rose-900 dark:text-rose-200", 
-        badgeClass: "bg-rose-200/90 text-rose-900 border-rose-400/80 dark:bg-rose-950/40 dark:text-rose-200 dark:border-rose-800/60",
-        performance: "Life-threatening heat stress risk. Body cannot dissipate heat fast enough.",
-        action: "Cancel outdoor run. Heat stroke risk far outweighs any training benefit."
-      };
-    }
-    
-    // WBGT 73-82°F: Hot - High Risk (Red Flag)
-    if (tempF >= 73) {
-      return { 
-        text: "High risk — dramatically slower times, heat illness common", 
-        textClass: "text-rose-700 dark:text-rose-300", 
-        badgeClass: "bg-rose-100/80 text-rose-700 border-rose-300/60 dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500/40",
-        performance: "Expect 3-5%+ slower pace. Heat exhaustion and heat stroke spike in this range.",
-        action: "Only if heat-acclimated. Shorten distance 30-50%, add 60-90s/mile, take walk breaks every 10 min."
-      };
-    }
-    
-    // WBGT 65-73°F: Warm - Caution (Yellow Flag)
-    if (tempF >= 65) {
-      return { 
-        text: "Caution — performance declines ~0.3-0.4% per degree", 
-        textClass: "text-amber-600 dark:text-amber-400", 
-        badgeClass: "bg-amber-100/80 text-amber-700 border-amber-300/60 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40",
-        performance: "Expect 1-3% slower pace. Heat loss less efficient, fatigue comes sooner.",
-        action: "Slow easy pace 20-40s/mile, hydrate every 15 min, seek shade, monitor closely."
-      };
-    }
-    
-    // WBGT 50-65°F: Cool/Neutral - Ideal (Green Flag)
-    return { 
-      text: "Ideal — peak performance, minimal heat stress", 
-      textClass: "text-emerald-600 dark:text-emerald-400", 
-      badgeClass: "bg-emerald-100/80 text-emerald-700 border-emerald-300/60 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40",
-      performance: "Optimal zone for fast times. Body regulates temperature easily.",
-      action: "Go for it! Conditions support your best effort with minimal adjustments."
-    };
-  }
-  
-  // Cool weather (using feels-like temp): Cold stress and performance zones
-  
-  // Feels-like 41-54°F: PR Sweet Spot
-  if (tempF >= 41) {
-    return { 
-      text: "PR conditions — optimal for fast times", 
-      textClass: "text-emerald-600 dark:text-emerald-400", 
-      badgeClass: "bg-emerald-100/80 text-emerald-700 border-emerald-300/60 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40",
-      performance: "Perfect racing weather. Cool enough to prevent overheating, warm enough for muscle function.",
-      action: "Great day for tempo runs, intervals, or races. Dress light — you'll warm up fast."
-    };
-  }
-  
-  // Feels-like 30-40°F: Fast but Chilly
-  if (tempF >= 30) {
-    return { 
-      text: "Fast conditions — dress in layers", 
-      textClass: "text-sky-600 dark:text-sky-400", 
-      badgeClass: "bg-sky-100/80 text-sky-700 border-sky-300/60 dark:bg-sky-500/20 dark:text-sky-300 dark:border-sky-500/40",
-      performance: "Still good for performance. Extend warm-up 5-10 min, expect slight stiffness initially.",
-      action: "Layer appropriately, protect hands. You'll feel great once warmed up."
-    };
-  }
-  
-  // Feels-like 20-29°F: Cold
-  if (tempF >= 20) {
-    return { 
-      text: "Cold — performance impacted, discomfort increases", 
-      textClass: "text-blue-600 dark:text-blue-400", 
-      badgeClass: "bg-blue-100/80 text-blue-700 border-blue-300/60 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/40",
-      performance: "Expect 1-2% slower pace. Muscles need longer to warm up, breathing may be uncomfortable.",
-      action: "15 min warm-up, layer carefully, protect face/hands. Ease into your pace."
-    };
-  }
-  
-  // Feels-like 10-19°F: Very Cold
-  if (tempF >= 10) {
-    return { 
-      text: "Very cold — significant performance challenge", 
-      textClass: "text-indigo-600 dark:text-indigo-400", 
-      badgeClass: "bg-indigo-100/80 text-indigo-700 border-indigo-300/60 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border-indigo-500/40",
-      performance: "Expect 2-4% slower pace. Cold air strains breathing, extremities lose function.",
-      action: "Cover all skin, windproof layers critical. Shorten distance, focus on effort not pace."
-    };
-  }
-  
-  // Feels-like 0-9°F: Bitter
-  if (tempF >= 0) {
-    return { 
-      text: "Bitter cold — severe conditions", 
-      textClass: "text-violet-700 dark:text-violet-400", 
-      badgeClass: "bg-violet-100/80 text-violet-700 border-violet-300/60 dark:bg-violet-500/20 dark:text-violet-300 dark:border-violet-500/40",
-      performance: "Performance severely compromised. Breathing painful, frostbite risk on exposed skin.",
-      action: "Advanced runners only. Full face coverage, run near shelter, bring phone. Consider treadmill."
-    };
-  }
-  
-  // Feels-like -1 to -24°F: High Risk (Frostbite ~30 min)
-  if (tempF >= -24) {
-    return { 
-      text: "High risk — frostbite in ~30 min on exposed skin", 
-      textClass: "text-fuchsia-800 dark:text-fuchsia-300", 
-      badgeClass: "bg-fuchsia-100/80 text-fuchsia-800 border-fuchsia-300/60 dark:bg-fuchsia-950/40 dark:text-fuchsia-200 dark:border-fuchsia-800/60",
-      performance: "Performance irrelevant. Survival and injury prevention are priorities.",
-      action: "Treadmill strongly recommended. Outside: full coverage, run loops near warmth, alert someone."
-    };
-  }
-  
-  // Feels-like ≤-25°F: Danger (Frostbite ~15 min)
-  return { 
-    text: "Extreme danger — frostbite in ~15 min, training not recommended", 
-    textClass: "text-fuchsia-900 dark:text-fuchsia-200", 
-    badgeClass: "bg-fuchsia-200/90 text-fuchsia-900 border-fuchsia-400/80 dark:bg-fuchsia-950/40 dark:text-fuchsia-200 dark:border-fuchsia-800/60",
-    performance: "Life-threatening cold exposure. No performance benefit possible.",
-    action: "Cancel outdoor run. Extreme frostbite and hypothermia risk."
-  };
-}
+// --- Helper functions extracted to utils/ ---
+// getRunningCondition, scoring functions, outfit helpers now imported from utils/
 
 // --- Configurable Thresholds for Gear Logic ---
 const TIGHTS_TEMP_THRESHOLD = 48; // Below this adjT, add tights
@@ -233,7 +121,7 @@ const COLD_HANDS_WIND_MITTENS_THRESHOLD = 12; // Cold hands: mittens at lower wi
 
 // --- Scoring Temperature Thresholds ---
 // These control when temperature penalties reach their maximum (99 points)
-export const HEAT_PENALTY_MAX_TEMP = 90; // Temperature (°F) where heat penalty reaches maximum (99 points) - WBGT cutoff
+export const HEAT_PENALTY_MAX_TEMP = 85; // Temperature (°F) where heat penalty reaches maximum (99 points)
 export const COLD_PENALTY_MAX_MULTIPLIER = 28; // Max penalty for cold (lower = more forgiving, max = 99)
 export const COLD_PENALTY_WIDTH_WORKOUT = 22; // Temperature range for cold penalty (workouts)
 export const COLD_PENALTY_WIDTH_EASY = 20; // Temperature range for cold penalty (easy/long runs)
@@ -303,450 +191,11 @@ export const HEAT_SYNERGY_DP_MULTIPLIER = 0.6; // Multiplier for dew point heat 
 export const HEAT_SYNERGY_TEMP_DIVISOR = 5; // Temperature divisor for heat synergy calculation
 export const HEAT_SYNERGY_MAX_MULTIPLIER = 20; // Max multiplier for heat synergy
 
-// --- Comfort/score model ---
-function dewPointF(tempF, rh) {
-  const tempC = (tempF - 32) * (5 / 9);
-  const a = 17.62, b = 243.12;
-  const gamma = Math.log(Math.max(1e-6, rh) / 100) + (a * tempC) / (b + tempC);
-  const dpC = (b * gamma) / (a - gamma);
-  return (dpC * 9) / 5 + 32;
-}
+// --- Scoring functions (dewPointF, computeRunningScore, scoreLabel, scoreTone, scoreBasedTone, lerpColor) ---
+// All moved to utils/scoring.js and imported at top of file
 
-function computeRunningScore({ tempF, apparentF, humidity, windMph, precipProb, precipIn, uvIndex, pressure, solarRadiation, cloudCover }, workout, longRun) {
-  // Calculate a running score (0-100) based on weather conditions
-  // Higher score = better running conditions, lower score = worse conditions
-  // Score starts at 100 and subtracts penalties for various weather factors
-
-  // Step 1: Determine ideal temperature based on run type
-  // Workouts need cooler temps to prevent heat buildup during high effort
-  // Long runs need moderate temps to avoid temperature swings over time
-  // Easy runs are most flexible with temps around 50°F
-  const ideal = workout ? IDEAL_TEMP_WORKOUT : longRun ? IDEAL_TEMP_LONG_RUN : IDEAL_TEMP_EASY;
-
-  // Step 2: Set temperature penalty curve width based on run type
-  // Workouts have narrower cold tolerance (more sensitive to cold starts)
-  // Easy/long runs have wider cold tolerance (can warm up during run)
-  const coolWidth = workout ? COLD_PENALTY_WIDTH_WORKOUT : COLD_PENALTY_WIDTH_EASY;
-
-  // Step 3: Calculate dew point (humidity's effect on perceived temperature)
-  const dpF = dewPointF(tempF, humidity);
-
-  // Step 3.5: For warm weather (>60°F), use WBGT instead of apparent temperature
-  // WBGT accounts for humidity, sun, and wind in a scientifically validated way
-  const wbgtF = apparentF > 60 ? calculateWBGT({ 
-    tempF, 
-    humidity, 
-    windMph, 
-    pressureHPa: pressure, 
-    solarRadiationWm2: solarRadiation, 
-    cloudCover: cloudCover ?? 50 
-  }) : null;
-  
-  // Use WBGT for warm weather, apparent temp for cool/cold weather
-  const effectiveTemp = wbgtF !== null ? wbgtF : apparentF;
-
-  // Step 4: Calculate temperature penalty using asymmetric curves
-  // Warmer than ideal: exponential penalty (heat builds up fast)
-  // Cooler than ideal: quadratic penalty (cold is more tolerable, can warm up)
-  const diff = effectiveTemp - ideal;
-  const warmSpan = Math.max(5, HEAT_PENALTY_MAX_TEMP - ideal); // Heat penalty range (ideal to max temp)
-  const tempPenalty = diff >= 0
-    ? Math.pow(clamp(diff / warmSpan, 0, 1), 1.6) * 99  // Heat: exponential curve, max 99 penalty
-    : Math.pow(Math.abs(diff) / coolWidth, 2) * COLD_PENALTY_MAX_MULTIPLIER;       // Cold: quadratic curve
-
-  // Step 5: Calculate humidity penalty based on dew point thresholds
-  // Higher dew point = more moisture in air = harder to cool via sweat
-  let dewpointPenalty;
-  if (dpF < DEW_POINT_COMFORTABLE) dewpointPenalty = DEW_POINT_PENALTY_COMFORTABLE;
-  else if (dpF < DEW_POINT_SLIGHTLY_MUGGY) dewpointPenalty = DEW_POINT_PENALTY_SLIGHTLY_MUGGY;
-  else if (dpF < DEW_POINT_MODERATE) dewpointPenalty = DEW_POINT_PENALTY_MODERATE;
-  else if (dpF < DEW_POINT_MUGGY) dewpointPenalty = DEW_POINT_PENALTY_MUGGY;
-  else if (dpF < DEW_POINT_VERY_HUMID) dewpointPenalty = DEW_POINT_PENALTY_VERY_HUMID;
-  else if (dpF < DEW_POINT_OPPRESSIVE) dewpointPenalty = DEW_POINT_PENALTY_OPPRESSIVE;
-  else dewpointPenalty = DEW_POINT_PENALTY_DANGEROUS;
-
-  // Step 6: Calculate humidity penalty (additional factor when hot + humid)
-  // Only applies when both hot AND humid (compounding effect)
-  const humidityPenalty = humidity > HUMIDITY_THRESHOLD && apparentF > HUMIDITY_TEMP_THRESHOLD ? Math.pow((humidity - HUMIDITY_THRESHOLD) / 20, 2) * HUMIDITY_PENALTY_MAX : 0;
-
-  // Step 7: Calculate wind penalty (context-dependent)
-  // Wind can help (cooling in heat) or hurt (resistance + wind chill in cold)
-  const windPenalty = Math.pow(Math.max(0, windMph - WIND_PENALTY_OFFSET) / WIND_PENALTY_BASE_DIVISOR, 2) * WIND_PENALTY_MAX;
-
-  // Step 8: Calculate precipitation penalty
-  // Based on probability + amount, with extra penalty for ice danger
-  const precipPenalty = Math.min(Math.max((precipProb / 100) * PRECIP_PROB_PENALTY_MAX, 0), PRECIP_PROB_PENALTY_MAX) + Math.min(Math.max(precipIn * PRECIP_AMOUNT_MULTIPLIER, 0), PRECIP_AMOUNT_PENALTY_MAX) + (apparentF <= ICE_DANGER_TEMP && precipIn > 0 ? ICE_DANGER_PENALTY : 0);
-
-  // Step 9: Calculate UV penalty (sun exposure risk)
-  // Higher for workouts (heat + sun = double trouble) and long runs (more exposure time)
-  let uvPenalty = Math.min(Math.max(Math.max(0, uvIndex - UV_BASE_THRESHOLD) * UV_PENALTY_MULTIPLIER, 0), UV_PENALTY_MAX);
-  if (workout && apparentF >= UV_WORKOUT_HEAT_TEMP) uvPenalty += UV_WORKOUT_HEAT_PENALTY;
-  if (longRun) {
-    uvPenalty = Math.min(Math.max(Math.max(0, uvIndex - UV_LONGRUN_THRESHOLD) * UV_LONGRUN_MULTIPLIER, 0), UV_LONGRUN_MAX); // Long runs more UV sensitive
-    if (apparentF >= UV_WORKOUT_HEAT_TEMP) uvPenalty += UV_LONGRUN_HEAT_PENALTY; // Extra heat buildup over time
-  }
-
-  // Step 10: Calculate synergy penalties (compounding weather effects)
-  // Cold synergy: wind + cold = dangerous wind chill
-  // Heat synergy: humidity + heat = heat illness risk
-  const synergyCold = apparentF < COLD_SYNERGY_TEMP ? (COLD_SYNERGY_TEMP - apparentF) * COLD_SYNERGY_MULTIPLIER * (windMph > COLD_SYNERGY_WIND_THRESHOLD ? COLD_SYNERGY_WIND_MULTIPLIER : 0) : 0;
-  const synergyHeat = (dpF > HEAT_SYNERGY_DP_THRESHOLD ? (dpF - HEAT_SYNERGY_DP_THRESHOLD) * HEAT_SYNERGY_DP_MULTIPLIER : 0) + (apparentF > HEAT_SYNERGY_TEMP_THRESHOLD ? Math.pow((apparentF - HEAT_SYNERGY_TEMP_THRESHOLD) / HEAT_SYNERGY_TEMP_DIVISOR, 2) * HEAT_SYNERGY_MAX_MULTIPLIER : 0);
-
-  // Step 11: Sum all penalties and ensure bounds (0-99)
-  let penalties = tempPenalty + dewpointPenalty + humidityPenalty + windPenalty + precipPenalty + uvPenalty + synergyCold + synergyHeat;
-  return Math.min(Math.max(Math.round(100 - Math.min(Math.max(penalties, 0), 99)), 0), 100);
-}
-
-function scoreLabel(score) {
-  if (score >= 85) return { text: "Excellent", tone: "Great time to fly" };
-  if (score >= 65) return { text: "Good", tone: "Solid conditions" };
-  if (score >= 45) return { text: "Fair", tone: "Manageable with tweaks" };
-  if (score >= 25) return { text: "Challenging", tone: "Proceed with care" };
-  return { text: "Tough", tone: "Consider cross-training" };
-}
-
-// Helper to interpolate between two RGB colors
-function lerpColor(color1, color2, t) {
-  const r = Math.round(color1.r + (color2.r - color1.r) * t);
-  const g = Math.round(color1.g + (color2.g - color1.g) * t);
-  const b = Math.round(color1.b + (color2.b - color1.b) * t);
-  return { r, g, b };
-}
-
-function scoreTone(score, apparentF) {
-  // Temperature-based gradient: cold (blue) -> ideal (green) -> warm (yellow) -> hot (red)
-  // Ideal range: 40-50°F (most green)
-  const ideal = 45;
-  const warmMid = 65;        // Yellow zone
-  const coldThreshold = 20;  // Below this: full blue
-  const hotThreshold = 85;   // Above this: full red
-  
-  // Define color stops: blue (cold) -> green (ideal) -> yellow (warm) -> red (hot)
-  const blue = { r: 59, g: 130, b: 246 };     // blue-500
-  const green = { r: 34, g: 197, b: 94 };     // green-500
-  const yellow = { r: 234, g: 179, b: 8 };    // yellow-500
-  const red = { r: 239, g: 68, b: 68 };       // red-500
-  
-  let color;
-  if (apparentF <= coldThreshold) {
-    color = blue;
-  } else if (apparentF >= hotThreshold) {
-    color = red;
-  } else if (apparentF < ideal) {
-    // Interpolate from blue to green
-    const t = (apparentF - coldThreshold) / (ideal - coldThreshold);
-    color = lerpColor(blue, green, clamp(t, 0, 1));
-  } else if (apparentF < warmMid) {
-    // Interpolate from green to yellow
-    const t = (apparentF - ideal) / (warmMid - ideal);
-    color = lerpColor(green, yellow, clamp(t, 0, 1));
-  } else {
-    // Interpolate from yellow to red
-    const t = (apparentF - warmMid) / (hotThreshold - warmMid);
-    color = lerpColor(yellow, red, clamp(t, 0, 1));
-  }
-  
-  const rgb = `rgb(${color.r}, ${color.g}, ${color.b})`;
-  const lightBg = `rgba(${color.r}, ${color.g}, ${color.b}, 0.1)`;
-  const border = `rgba(${color.r}, ${color.g}, ${color.b}, 0.3)`;
-  
-  return {
-    textClass: "",
-    textStyle: { color: rgb },
-    badgeClass: "",
-    badgeStyle: { 
-      backgroundColor: lightBg, 
-      color: rgb, 
-      borderColor: border 
-    },
-    fillColor: rgb
-  };
-}
-
-function scoreBasedTone(score) {
-  // Score-based gradient: purple (poor) -> red -> yellow -> green (excellent)
-  // Based on score ranges: 1-10 (purple to red), 10-50 (red to yellow), 50-100 (yellow to green)
-  
-  // Define color stops: purple (poor) -> red -> yellow -> green (excellent)
-  const purple = { r: 147, g: 51, b: 234 };    // purple-600
-  const red = { r: 239, g: 68, b: 68 };        // red-500
-  const yellow = { r: 234, g: 179, b: 8 };     // yellow-500
-  const green = { r: 34, g: 197, b: 94 };      // green-500
-  
-  let color;
-  if (score <= 10) {
-    // Interpolate from purple to red (1-10)
-    const t = (score - 1) / (10 - 1);
-    color = lerpColor(purple, red, clamp(t, 0, 1));
-  } else if (score <= 50) {
-    // Interpolate from red to yellow (10-50)
-    const t = (score - 10) / (50 - 10);
-    color = lerpColor(red, yellow, clamp(t, 0, 1));
-  } else {
-    // Interpolate from yellow to green (50-100)
-    const t = (score - 50) / (100 - 50);
-    color = lerpColor(yellow, green, clamp(t, 0, 1));
-  }
-  
-  const rgb = `rgb(${color.r}, ${color.g}, ${color.b})`;
-  const lightBg = `rgba(${color.r}, ${color.g}, ${color.b}, 0.1)`;
-  const border = `rgba(${color.r}, ${color.g}, ${color.b}, 0.3)`;
-  
-  return {
-    textClass: "",
-    textStyle: { color: rgb },
-    badgeClass: "",
-    badgeStyle: { 
-      backgroundColor: lightBg, 
-      color: rgb, 
-      borderColor: border 
-    },
-    fillColor: rgb
-  };
-}
-
-// --- Tiny UI for the insights panel ---
-const ProgressBar = ({ pct }) => (
-  <div className="h-2 w-full rounded-full bg-gray-100 overflow-hidden">
-    <div className="h-2 rounded-full bg-pink-500" style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
-  </div>
-);
-
-const ForecastCard = ({ derived, getDisplayedScore, runnerBoldness, className = "" }) => (
-  <Card className={className}>
-    <CardHeader>
-      <CardTitle className="flex items-center justify-between">
-        <span className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 dark:from-violet-600 dark:to-purple-700">
-            <TrendingUp className="h-4 w-4 text-white" />
-          </div>
-          6-hour outlook
-        </span>
-        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Next 6 hours</span>
-      </CardTitle>
-    </CardHeader>
-    <CardContent>
-      {!derived ? (
-        <div className="space-y-2.5">
-          {Array.from({ length: 6 }).map((_, idx) => (
-            <div key={idx} className="h-20 w-full animate-pulse rounded-xl bg-slate-200/60 dark:bg-slate-800/40" />
-          ))}
-        </div>
-      ) : derived.forecast.length ? (
-        <div className="space-y-2.5">
-          {derived.forecast.slice(0, 6).map((slot, idx) => {
-            const isNow = idx === 0;
-            // Visual display values (adjusted by runner boldness)
-            const displaySlotScore = typeof slot.score === 'number' ? getDisplayedScore(slot.score, runnerBoldness) : slot.score;
-            const displaySlotLabel = scoreLabel(displaySlotScore);
-            const displaySlotTone = scoreBasedTone(displaySlotScore);
-
-            return (
-              <motion.button
-                key={slot.time}
-                onClick={() => {
-                  if (typeof derived.onHourClick === 'function') {
-                    derived.onHourClick(slot);
-                  }
-                }}
-                className={`group relative overflow-hidden rounded-xl border transition-all duration-300 hover:shadow-lg w-full text-left cursor-pointer ${
-                  isNow 
-                    ? 'border-violet-300/60 bg-gradient-to-br from-violet-50 via-purple-50/80 to-fuchsia-50/60 dark:border-violet-500/40 dark:from-violet-500/15 dark:via-purple-500/10 dark:to-fuchsia-500/5'
-                    : 'border-gray-200/50 bg-white/80 dark:border-slate-700/60 dark:bg-slate-900/40 hover:border-violet-200 dark:hover:border-violet-500/30'
-                }`}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.05 }}
-                whileHover={{ scale: 1.02, x: 4 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                {/* Accent bar */}
-                <div 
-                  className="absolute left-0 top-0 h-full w-1 transition-all duration-300 group-hover:w-1.5"
-                  style={{ background: displaySlotTone.fillColor }}
-                />
-                
-                {/* Content */}
-                <div className="flex items-center gap-3 p-3 pl-4">
-                  {/* Time and Score */}
-                  <div className="flex min-w-[100px] flex-col">
-                    <div className={`text-xs font-bold uppercase tracking-wider ${
-                      isNow 
-                        ? 'text-violet-600 dark:text-violet-400' 
-                        : 'text-slate-500 dark:text-slate-400'
-                    }`}>
-                      {slot.timeLabel}
-                    </div>
-                    <div className="mt-0.5 flex items-baseline gap-1.5">
-                      <span className="text-3xl font-bold leading-none" style={displaySlotTone.textStyle}>
-                        {displaySlotScore}
-                      </span>
-                      <span className="text-xs font-medium text-slate-400 dark:text-slate-500">/ 100</span>
-                    </div>
-                  </div>
-
-                  {/* Divider */}
-                  <div className="h-12 w-px bg-gradient-to-b from-transparent via-gray-300 to-transparent dark:via-slate-600" />
-
-                  {/* Badge and Temp */}
-                  <div className="flex flex-1 flex-col items-start gap-1.5">
-                    <span 
-                      className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold shadow-sm" 
-                      style={displaySlotTone.badgeStyle}
-                    >
-                      {displaySlotLabel.text}
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <Thermometer className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
-                      <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                        {slot.apparentDisplay ?? "—"}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Alerts */}
-                  {slot.alerts?.length ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {slot.alerts.map((alert, alertIdx) => {
-                        const meta = FORECAST_ALERT_META[alert.type];
-                        if (!meta) return null;
-                        const Icon = meta.Icon;
-                        return (
-                          <div
-                            key={`${slot.time}-${alert.type}-${alertIdx}`}
-                            className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${meta.badgeClass}`}
-                            title={alert.message}
-                          >
-                            <Icon className={`h-3 w-3 ${meta.iconClass}`} />
-                            <span className="hidden sm:inline">{meta.label}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-                </div>
-
-                {/* Hover glow effect */}
-                  <div 
-                    className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-                    style={{
-                      background: `radial-gradient(circle at left center, ${displaySlotTone.fillColor}15 0%, transparent 70%)`
-                    }}
-                  />
-              </motion.button>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-8 dark:border-slate-700 dark:bg-slate-800/30">
-          <Cloud className="h-10 w-10 text-slate-400 dark:text-slate-600" />
-          <p className="mt-2 text-sm font-medium text-slate-500 dark:text-slate-400">No forecast data available</p>
-        </div>
-      )}
-    </CardContent>
-  </Card>
-);
-
-const BestRunTimeCard = ({ derived, unit, getDisplayedScore, runnerBoldness, className = "" }) => {
-  if (!derived?.bestRunTimes?.today && !derived?.bestRunTimes?.tomorrow) return null;
-  
-  const { today, tomorrow } = derived.bestRunTimes;
-  
-  const renderTimeSlot = (slot, dayLabel) => {
-    const { time, score, apparentF, wind, precipProb, uv, isNow } = slot;
-    const date = new Date(time);
-    const timeStr = isNow ? 'Now' : date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    
-  const displayTemp = unit === "F" ? Math.round(apparentF) : Math.round((apparentF - 32) * 5 / 9);
-  // Visual display values (adjusted by boldness)
-  const displayScore = typeof score === 'number' ? getDisplayedScore(score, runnerBoldness) : score;
-  const label = scoreLabel(displayScore);
-  const tone = scoreBasedTone(displayScore);
-    
-  const highlights = [];
-  if (displayScore >= 80) highlights.push("Excellent conditions");
-  else if (displayScore >= 65) highlights.push("Great conditions");
-  else if (displayScore >= 50) highlights.push("Good conditions");
-  else highlights.push("Best available window");
-    
-    if (precipProb < 20) highlights.push("low precip risk");
-    if (wind < 10) highlights.push("calm winds");
-    if (uv < 3) highlights.push("low UV");
-    else if (uv >= 6) highlights.push("high UV - sunscreen recommended");
-    
-    const isToday = dayLabel === "Today";
-    const bgClass = isToday
-      ? "border-emerald-200/60 bg-gradient-to-br from-emerald-50/80 to-green-50/60 dark:border-emerald-500/30 dark:from-emerald-500/10 dark:to-green-500/5"
-      : "border-sky-200/60 bg-gradient-to-br from-sky-50/80 to-blue-50/60 dark:border-sky-500/30 dark:from-sky-500/10 dark:to-blue-500/5";
-    
-    const textClass = isToday
-      ? "text-emerald-700 dark:text-emerald-300"
-      : "text-sky-700 dark:text-sky-300";
-      
-    const mainTextClass = isToday
-      ? "text-emerald-900 dark:text-emerald-100"
-      : "text-sky-900 dark:text-sky-100";
-      
-    const badgeClass = isToday
-      ? "border-emerald-200 bg-white/60 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200"
-      : "border-sky-200 bg-white/60 text-sky-800 dark:border-sky-500/40 dark:bg-sky-500/10 dark:text-sky-200";
-    
-    return (
-      <div className={`rounded-2xl border p-4 ${bgClass}`}>
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <div className={`text-xs font-medium uppercase tracking-wide ${textClass}`}>
-              {dayLabel}
-            </div>
-            <div className={`mt-1 text-3xl font-bold ${mainTextClass}`}>
-              {timeStr}
-            </div>
-            <div className="mt-2 text-sm text-gray-700 dark:text-slate-300">
-              {displayTemp}°{unit} feels like • {highlights[0]}
-            </div>
-          </div>
-          <div className="flex flex-col items-end gap-1">
-            <div className="text-4xl font-bold" style={tone.textStyle}>
-                {displayScore}
-              </div>
-            <span className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium" style={tone.badgeStyle}>
-              {label.text}
-            </span>
-          </div>
-        </div>
-        {highlights.length > 1 && (
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {highlights.slice(1).map((highlight, idx) => (
-              <span key={idx} className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${badgeClass}`}>
-                {highlight}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
-  
-  return (
-    <Card className={className}>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <TrendingUp className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-          <span>Best times to run</span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {today && renderTimeSlot(today, "Today")}
-        {tomorrow && renderTimeSlot(tomorrow, "Tomorrow")}
-        {!today && !tomorrow && (
-          <div className="rounded-lg border border-slate-200/60 bg-slate-50/60 p-3 text-center text-xs text-slate-600 dark:border-slate-700/60 dark:bg-slate-800/40 dark:text-slate-400">
-            No optimal run times found for today or tomorrow
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-};
+// --- Hands/Socks Helpers (handsLevelFromGear, handsLabel, handsTone, chooseSocks, calculateEffectiveTemp) ---
+// All moved to utils/outfit/outfitHelpers.js and imported at top of file
 
 /*
   RunFit Wardrobe — Single-file React (App.jsx)
@@ -758,133 +207,8 @@ const BestRunTimeCard = ({ derived, unit, getDisplayedScore, runnerBoldness, cla
   - Defaults to °F, Kansas City, MO, and "Female" profile.
 */
 
-async function fetchMetNoWeather(p, unit) {
-  const url = `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${p.lat}&lon=${p.lon}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('MET Norway fetch failed');
-  const data = await res.json();
-  const first = data?.properties?.timeseries?.[0];
-  if (!first?.data?.instant?.details) throw new Error('MET Norway missing data');
-
-  const details = first.data.instant.details;
-  const next1h = first.data.next_1_hours?.details;
-  const next6h = first.data.next_6_hours?.details;
-
-  const tempC = typeof details.air_temperature === 'number' ? details.air_temperature : null;
-  const humidity = typeof details.relative_humidity === 'number' ? details.relative_humidity : null;
-  const windMs = typeof details.wind_speed === 'number' ? details.wind_speed : null;
-  const cloud = typeof details.cloud_area_fraction === 'number' ? details.cloud_area_fraction : null;
-  const precipMm =
-    typeof next1h?.precipitation_amount === 'number'
-      ? next1h.precipitation_amount
-      : typeof next6h?.precipitation_amount === 'number'
-      ? next6h.precipitation_amount / 6
-      : null;
-  const precipProb =
-    typeof next1h?.probability_of_precipitation === 'number'
-      ? next1h.probability_of_precipitation
-      : typeof next6h?.probability_of_precipitation === 'number'
-      ? next6h.probability_of_precipitation
-      : null;
-
-  const feels = typeof tempC === 'number' ? computeFeelsLike(tempC, windMs ?? 0, humidity ?? 50) : null;
-
-  const temperature = tempC == null ? undefined : unit === 'F' ? cToF(tempC) : tempC;
-  const apparent = feels == null ? temperature : unit === 'F' ? feels.f : feels.c;
-  const wind = windMs == null ? undefined : msToMph(windMs);
-  const precip = precipMm == null ? undefined : mmToInches(precipMm);
-
-  return {
-    provider: 'MET Norway',
-    temperature,
-    apparent,
-    wind,
-    humidity,
-    precip,
-    precipProb,
-    uv: undefined,
-    cloud,
-  };
-}
-
-
-// --- Hands/Socks Helpers ---
-function handsLevelFromGear(keys) {
-  if (keys.includes("mittens") && keys.includes("mittens_liner")) return 4;
-  if (keys.includes("mittens")) return 3;
-  if (keys.includes("medium_gloves")) return 2;
-  if (keys.includes("light_gloves")) return 1;
-  return 0;
-}
-function handsLabel(level) { return ["None", "Light gloves", "Medium gloves", "Mittens", "Mittens + liner"][level] || "None"; }
-function handsTone(level) {
-  return [
-    "bg-emerald-100 text-emerald-700 border-emerald-200",
-    "bg-sky-100 text-sky-700 border-sky-200",
-    "bg-amber-100 text-amber-800 border-amber-200",
-    "bg-orange-100 text-orange-800 border-orange-200",
-    "bg-rose-100 text-rose-800 border-rose-200"
-  ][level] || "bg-gray-100 text-gray-800 border-gray-200";
-}
-
-function chooseSocks({ apparentF, precipIn, precipProb, windMph, humidity }) {
-  // Three-level progression: light_socks -> heavy_socks -> double_socks
-  let sockLevel = 'light_socks'; // Default
-  
-  // Upgrade to heavy socks in cool/moderate conditions
-  if (apparentF <= 50) {
-    sockLevel = 'heavy_socks';
-  }
-  
-  // Upgrade to double socks in cold/wet/windy conditions
-  if (apparentF <= 25 || 
-      (apparentF <= 32 && (precipIn > 0 || precipProb >= 60)) || 
-      (apparentF <= 30 && windMph >= 15)) {
-    sockLevel = 'double_socks';
-  }
-  
-  // Stay light in hot/humid conditions regardless of base temp
-  if (apparentF >= 70 || (apparentF >= 60 && humidity >= 75)) {
-    sockLevel = 'light_socks';
-  }
-  
-  return sockLevel;
-}
-
-// Calculate effective temperature considering all weather factors
-function calculateEffectiveTemp({ apparentF, humidity, windMph, uvIndex, precipProb, isDay }, tempSensitivity = 0) {
-  let effectiveTemp = apparentF;
-  
-  // User sensitivity adjustment: -2 (runs cold/needs warmer) to +2 (runs hot/needs cooler)
-  // Each point = ~5°F adjustment
-  effectiveTemp += tempSensitivity * 5;
-  
-  // Wind chill factor (wind makes it feel colder)
-  if (apparentF < 50 && windMph > 10) {
-    const windChillPenalty = Math.min((windMph - 10) * 0.3, 5); // Up to 5°F colder
-    effectiveTemp -= windChillPenalty;
-  }
-  
-  // Humidity/dew point factor (high humidity makes heat worse)
-  if (apparentF > 55 && humidity > 60) {
-    const humidityPenalty = ((humidity - 60) / 40) * 8; // Up to 8°F hotter feeling
-    effectiveTemp += humidityPenalty;
-  }
-  
-  // Sun exposure factor (UV makes you feel warmer during day)
-  if (isDay && uvIndex > 3 && apparentF > 45) {
-    const sunBonus = Math.min((uvIndex - 3) * 1.5, 6); // Up to 6°F warmer
-    effectiveTemp += sunBonus;
-  }
-  
-  // Rain/precipitation cooling (wet = feels colder)
-  if (precipProb > 50 && apparentF < 60) {
-    const rainPenalty = 3; // Wet clothes make you feel ~3°F colder
-    effectiveTemp -= rainPenalty;
-  }
-  
-  return Math.round(effectiveTemp);
-}
+// --- Core outfit recommendation functions below ---
+// (handsLevelFromGear, handsLabel, handsTone, chooseSocks, calculateEffectiveTemp now imported from utils/outfit/outfitHelpers.js)
 
 function baseLayersForTemp(adjT, gender) {
   const base = new Set();
@@ -1546,6 +870,11 @@ export default function App() {
     debugTimeHour: undefined,
   });
   const [showRefreshToast, setShowRefreshToast] = useState(false);
+  
+  // Splash screen loading state
+  const [showSplash, setShowSplash] = useState(true);
+  const [splashProgress, setSplashProgress] = useState(0);
+  const [splashStage, setSplashStage] = useState('Initializing...');
 
   // Calculate displayed score based on runner boldness (only affects display, not gear recommendations)
   const getDisplayedScore = useCallback((actualScore, boldness) => {
@@ -1796,137 +1125,13 @@ export default function App() {
   };
 
   const fetchWeather = async (p = place, u = unit) => {
-    setLoading(true); setError("");
+    setLoading(true); 
+    setError("");
     try {
-  const tempUnit = u === "F" ? "fahrenheit" : "celsius";
-  const primaryUrl = `https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lon}&current_weather=true&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,precipitation,cloud_cover,uv_index,wind_speed_10m,surface_pressure,shortwave_radiation&daily=sunrise,sunset&temperature_unit=${tempUnit}&windspeed_unit=mph&precipitation_unit=inch&timezone=auto&forecast_days=3`;
-
-      const [primaryResult, secondaryResult] = await Promise.allSettled([
-        fetch(primaryUrl).then((res) => {
-          if (!res.ok) throw new Error("Weather fetch failed");
-          return res.json();
-        }),
-        fetchMetNoWeather(p, u),
-      ]);
-
-      if (primaryResult.status !== 'fulfilled') throw primaryResult.reason;
-
-      const data = primaryResult.value;
-      const idx = getCurrentHourIndex(data?.hourly?.time || []);
-      const currentTime = data?.hourly?.time?.[idx];
-      const temp = data?.current_weather?.temperature;
-      const wind = data?.current_weather?.windspeed;
-      const apparent = data?.hourly?.apparent_temperature?.[idx] ?? temp;
-      const timezone = typeof data?.timezone === "string" ? data.timezone : undefined;
-      
-      // Debug: Check current hour index and solar radiation
-      const solarAtIdx = data?.hourly?.shortwave_radiation?.[idx];
-      const next12Solar = Array.from({length: 12}, (_, i) => 
-        data?.hourly?.shortwave_radiation?.[idx + i]
-      );
-      
-      console.log('========================================');
-      console.log('⏰ SOLAR RADIATION DIAGNOSIS');
-      console.log('========================================');
-      console.log('Current Array Index:', idx);
-      console.log('Current Time (from array):', currentTime);
-      console.log('Your Local Time:', new Date().toISOString());
-      console.log('Is Daytime (API says):', data?.current_weather?.is_day === 1);
-      console.log('----------------------------------------');
-      console.log('Solar at Current Index [' + idx + ']:', solarAtIdx, 'W/m²');
-      console.log('----------------------------------------');
-      console.log('Next 12 Hours Solar Radiation:');
-      next12Solar.forEach((solar, i) => {
-        const hour = data?.hourly?.time?.[idx + i];
-        console.log('  [' + (idx + i) + '] ' + hour + ' → ' + (solar || 0).toFixed(1) + ' W/m²');
-      });
-      console.log('========================================');
-
-      const fallbackSunrise = Array.isArray(data?.daily?.sunrise) ? data.daily.sunrise.filter(Boolean) : [];
-      const fallbackSunset = Array.isArray(data?.daily?.sunset) ? data.daily.sunset.filter(Boolean) : [];
-
-      const sunEvents = computeSunEvents({
-        timestamp: Date.now(),
-        latitude: p.lat,
-        longitude: p.lon,
-        timeZone: timezone,
-      });
-
-      const toIsoList = (arr = []) =>
-        arr
-          .filter((value) => typeof value === "number" && Number.isFinite(value))
-          .map((value) => new Date(value).toISOString());
-
-      const sunriseTimes = sunEvents.sunrise.length ? toIsoList(sunEvents.sunrise) : fallbackSunrise;
-      const sunsetTimes = sunEvents.sunset.length ? toIsoList(sunEvents.sunset) : fallbackSunset;
-      const dawnTimes = toIsoList(sunEvents.civilDawn);
-      const duskTimes = toIsoList(sunEvents.civilDusk);
-
-      const times = data?.hourly?.time || [];
-      const hourlyForecast = [];
-      for (let offset = 0; offset < 48; offset += 1) { // Extended to 48 hours for tomorrow's outfit
-        const hIdx = idx + offset;
-        if (!times[hIdx]) break;
-        hourlyForecast.push({
-          time: times[hIdx],
-          temperature: data?.hourly?.temperature_2m?.[hIdx],
-          apparent: data?.hourly?.apparent_temperature?.[hIdx] ?? data?.hourly?.temperature_2m?.[hIdx],
-          humidity: data?.hourly?.relative_humidity_2m?.[hIdx],
-          wind: data?.hourly?.wind_speed_10m?.[hIdx],
-          precipProb: data?.hourly?.precipitation_probability?.[hIdx],
-          precip: data?.hourly?.precipitation?.[hIdx],
-          uv: data?.hourly?.uv_index?.[hIdx],
-          cloud: data?.hourly?.cloud_cover?.[hIdx],
-          pressure: data?.hourly?.surface_pressure?.[hIdx],
-          solarRadiation: data?.hourly?.shortwave_radiation?.[hIdx],
-        });
-      }
-
-      const primaryWx = {
-        provider: 'Open-Meteo',
-        temperature: temp,
-        apparent,
-        wind,
-        humidity: data?.hourly?.relative_humidity_2m?.[idx] ?? 50,
-        precipProb: data?.hourly?.precipitation_probability?.[idx] ?? 0,
-        precip: data?.hourly?.precipitation?.[idx] ?? 0,
-        cloud: data?.hourly?.cloud_cover?.[idx] ?? 0,
-        uv: data?.hourly?.uv_index?.[idx] ?? 0,
-        pressure: data?.hourly?.surface_pressure?.[idx] ?? 1013.25,
-        solarRadiation: data?.hourly?.shortwave_radiation?.[idx] ?? 0,
-        isDay: data?.current_weather?.is_day === 1,
-        sunriseTimes,
-        sunsetTimes,
-        dawnTimes,
-        duskTimes,
-        timezone,
-        hourlyForecast,
-      };
-
-      let combined = { ...primaryWx };
-      const sources = { primary: primaryWx };
-
-      if (secondaryResult.status === 'fulfilled') {
-        const secondaryWx = secondaryResult.value;
-        sources.secondary = secondaryWx;
-        combined = {
-          ...blendWeather(primaryWx, secondaryWx),
-          isDay: primaryWx.isDay,
-          sunriseTimes,
-          sunsetTimes,
-          dawnTimes,
-          duskTimes,
-          timezone,
-        };
-      } else if (secondaryResult.status === 'rejected') {
-        console.warn('Secondary weather source unavailable', secondaryResult.reason);
-      }
-
-      combined.hourlyForecast = hourlyForecast;
-  const { provider: _ignoredProvider, ...finalWx } = combined;
-  setWx({ ...finalWx, sources });
-  setDebugActive(false);
-  setLastUpdated(Date.now());
+      const weatherData = await fetchWeatherService(p, u);
+      setWx(weatherData);
+      setDebugActive(false);
+      setLastUpdated(Date.now());
     } catch (e) {
       console.error(e);
       setError("Couldn't load weather. Try again.");
@@ -1939,17 +1144,7 @@ export default function App() {
     // Note: This function is called without awaiting its result in some cases.
     // It should update the state itself when the name is found.
     try {
-      const params = new URLSearchParams({ format: "jsonv2", lat: String(lat), lon: String(lon) });
-      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?${params.toString()}`, {
-        headers: nominatimHeaders(),
-      });
-      if (!res.ok) throw new Error("Nominatim reverse geocode failed");
-      const data = await res.json();
-      const addr = data?.address;
-      const locality = addr?.city || addr?.town || addr?.village || addr?.hamlet || addr?.municipality || addr?.suburb;
-      const region = addr?.state || addr?.state_district || addr?.county;
-      const fallback = typeof data?.display_name === "string" ? data.display_name.split(",")[0] : "";
-      const name = [locality || fallback, region].filter(Boolean).join(", ") || fallback;
+      const name = await reverseGeocodeService(lat, lon);
       if (name) {
         setPlace((p) => ({ ...p, name }));
         setQuery(name);
@@ -1961,36 +1156,86 @@ export default function App() {
 
   const ipLocationFallback = async () => {
     try {
-      const res = await fetch("https://ipapi.co/json/");
-      const d = await res.json();
-      if (!d?.latitude) throw new Error("IP API failed");
-      const nameGuess = d.city && d.region ? `${d.city}, ${d.region}` : "Approximate location";
-      const p = { name: nameGuess, lat: d.latitude, lon: d.longitude, source: 'ip' };
-      setPlace(p); setQuery(p.name); await fetchWeather(p, unit);
-      setError("Using approximate location. For GPS, enable location permissions.");
+      setSplashProgress(30);
+      setSplashStage('Finding your location...');
+      
+      const locationResult = await ipLocationService(DEFAULT_PLACE);
+      
+      setSplashProgress(50);
+      setSplashStage('Fetching weather data...');
+      
+      setPlace(locationResult); 
+      setQuery(locationResult.name); 
+      await fetchWeather(locationResult, unit);
+      
+      setSplashProgress(80);
+      setSplashStage('Calculating conditions...');
+      
+      if (locationResult.isApproximate) {
+        setError("Using approximate location. For GPS, enable location permissions.");
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setSplashProgress(100);
+      setSplashStage('Ready!');
     } catch (e) {
+      setSplashProgress(70);
+      setSplashStage('Loading default location...');
+      
       setError("Couldn't get your location. Please search a city.");
       await fetchWeather(DEFAULT_PLACE, unit);
+      
+      setSplashProgress(100);
+      setSplashStage('Ready!');
     }
   };
 
   const tryGeolocate = async () => {
     setLoading(true); setError("");
+    setSplashProgress(10);
+    setSplashStage('Getting location...');
+    
     try {
-      if (!("geolocation" in navigator) || !window.isSecureContext) { await ipLocationFallback(); return; }
+      if (!("geolocation" in navigator) || !window.isSecureContext) { 
+        await ipLocationFallback(); 
+        return; 
+      }
+      
+      setSplashProgress(30);
       const pos = await new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 }));
       const { latitude, longitude } = pos.coords;
+      
+      setSplashProgress(50);
+      setSplashStage('Fetching weather data...');
       
       // Set a temporary name and start weather fetch immediately
       const p = { name: "Current location", lat: latitude, lon: longitude, source: 'gps' };
       setPlace(p); 
       setQuery("Current location");
-      fetchWeather(p, unit); // Don't await, let it run
-
+      
+      await fetchWeather(p, unit);
+      
+      setSplashProgress(80);
+      setSplashStage('Calculating conditions...');
+      
       // Now, try to get a better name without blocking the UI
       reverseGeocode(latitude, longitude);
+      
+      // Small delay for smooth transition
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setSplashProgress(100);
+      setSplashStage('Ready!');
+      
+      // Hide splash after a brief moment
+      setTimeout(() => setShowSplash(false), 300);
 
-    } catch (err) { await ipLocationFallback(); } finally { setLoading(false); }
+    } catch (err) { 
+      await ipLocationFallback();
+      setSplashProgress(100);
+      setTimeout(() => setShowSplash(false), 300);
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   useEffect(() => { tryGeolocate(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -2002,26 +1247,17 @@ export default function App() {
   }, [theme]);
 
   const searchCity = async () => {
-    setLoading(true); setError("");
+    setLoading(true); 
+    setError("");
     try {
-      const params = new URLSearchParams({ q: query, format: "jsonv2", limit: "1", addressdetails: "1" });
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
-        headers: nominatimHeaders(),
-      });
-      const results = await res.json();
-      const hit = Array.isArray(results) ? results[0] : null;
-      if (!hit) throw new Error("No results");
-  const addr = hit.address || {};
-  const displayLocality = typeof hit.display_name === "string" ? hit.display_name.split(",")[0] : undefined;
-  const locality = addr.city || addr.town || addr.village || addr.hamlet || addr.municipality || addr.suburb || displayLocality;
-      const region = addr.state || addr.state_district || addr.county;
-      const name = [locality, region].filter(Boolean).join(", ") || hit.display_name || query;
-      const lat = parseFloat(hit.lat);
-      const lon = parseFloat(hit.lon);
-      if (Number.isNaN(lat) || Number.isNaN(lon)) throw new Error("Invalid coordinates");
-      const p = { name, lat, lon, source: 'manual' };
-      setPlace(p); fetchWeather(p, unit);
-    } catch (e) { setError("Couldn't find that place."); } finally { setLoading(false); }
+      const locationResult = await searchCityService(query);
+      setPlace(locationResult); 
+      fetchWeather(locationResult, unit);
+    } catch (e) { 
+      setError(e.message || "Couldn't find that place."); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   const derived = useMemo(() => {
@@ -2840,87 +2076,26 @@ export default function App() {
   }, [debugActive, debugInputs.debugTimeHour]);
 
   return (
-    <div 
-      className={`min-h-screen min-h-[100dvh] w-full transition-colors ${pageThemeClass}`}
-      style={{
-        paddingTop: 'env(safe-area-inset-top)',
-        paddingBottom: 'env(safe-area-inset-bottom)',
-        paddingLeft: 'env(safe-area-inset-left)',
-        paddingRight: 'env(safe-area-inset-right)',
-        overflowY: 'auto',
-        overflowX: 'hidden',
-        WebkitOverflowScrolling: 'touch',
-        height: '100%',
-      }}
-    >
-      {/* Refresh success toast */}
+    <>
       <AnimatePresence>
-        {showRefreshToast && (
-          <motion.div
-            className="fixed left-1/2 z-50 -translate-x-1/2"
-            style={{ top: 'max(env(safe-area-inset-top) + 1rem, 5rem)' }}
-            initial={{ opacity: 0, y: -20, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.9 }}
-            transition={{ type: "spring", stiffness: 500, damping: 30 }}
-          >
-            <div className="flex items-center gap-2 rounded-full bg-emerald-500 px-4 py-2.5 text-white shadow-lg backdrop-blur-sm">
-              <motion.svg 
-                className="h-5 w-5" 
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
-                initial={{ pathLength: 0 }}
-                animate={{ pathLength: 1 }}
-                transition={{ duration: 0.3, delay: 0.1 }}
-              >
-                <motion.path 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  strokeWidth={2.5} 
-                  d="M5 13l4 4L19 7"
-                />
-              </motion.svg>
-              <span className="text-sm font-semibold">Weather Refreshed!</span>
-            </div>
-          </motion.div>
+        {showSplash && (
+          <LoadingSplash
+            isLoading={showSplash}
+            progress={splashProgress}
+            stage={splashStage}
+          />
         )}
       </AnimatePresence>
-      
-      <motion.div 
-        className="mx-auto max-w-6xl px-6 py-8"
-        variants={pageVariants}
-        initial="initial"
-        animate="animate"
-        exit="exit"
+
+      <AppShell
+        pageThemeClass={pageThemeClass}
+        pageVariants={pageVariants}
+        showRefreshToast={showRefreshToast}
       >
-        <motion.header 
-          className="mb-6 flex items-start justify-between gap-4"
-          variants={cardVariants}
-        >
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <h1 className="text-2xl font-extrabold tracking-tight text-gray-900 dark:text-slate-100">SamsFitCast</h1>
-            <p className="mt-1 text-sm text-gray-500 dark:text-slate-300">Smart outfit picks for your run, based on real‑feel weather.</p>
-          </motion.div>
-          <motion.div
-            whileHover={{ scale: 1.1, rotate: 90 }}
-            whileTap={{ scale: 0.9 }}
-            transition={{ duration: 0.2 }}
-          >
-            <Button
-              variant="ghost"
-              className="h-12 w-12 rounded-full border border-transparent text-slate-500 shadow-sm hover:border-slate-200 hover:text-slate-700 hover:shadow dark:text-slate-300 dark:hover:border-slate-700"
-              onClick={() => setShowSettings(true)}
-              aria-label="Open settings"
-            >
-              <SettingsIcon className="h-6 w-6" />
-            </Button>
-          </motion.div>
-        </motion.header>
+        <Header 
+          onSettingsClick={() => setShowSettings(true)}
+          cardVariants={cardVariants}
+        />
 
         {/* Smart Night Running Card - Shows at top when enabled and conditions are met */}
         {smartNightCard && derived?.moonPhase && (() => {
@@ -3434,131 +2609,20 @@ export default function App() {
       animate="animate"
     >
       {/* Left Column */}
-            <motion.div className="flex flex-col gap-6 lg:col-start-1" variants={cardVariants}>
-                <Card className="overflow-hidden">
-                    <CardHeader className="bg-gradient-to-br from-gray-50/50 to-white dark:from-slate-900/50 dark:to-slate-900">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="h-1.5 w-1.5 rounded-full bg-emerald-500"></div>
-                          <CardTitle className="text-base">{optionTitle}</CardTitle>
-                        </div>
-                        {optionsDiffer && (
-                          <SegmentedControl
-                            value={activeOption}
-                            onChange={setActiveOption}
-                            options={[
-                              { label: "Performance", value: "A" },
-                              { label: "Comfort", value: "B" },
-                            ]}
-                          />
-                        )}
-                      </div>
-                    </CardHeader>
-                    <CardContent className="p-4">
-                      {derived ? (
-                        <>
-                          <motion.div 
-                            className="space-y-2"
-                            variants={staggerContainer}
-                            initial="initial"
-                            animate="animate"
-                          >
-                            {activeItems.map((item, idx) => (
-                              <motion.div 
-                                key={item.key} 
-                                className="group relative rounded-xl border border-gray-200/60 dark:border-slate-700/60 bg-gradient-to-br from-white to-gray-50/30 dark:from-slate-800/40 dark:to-slate-900/40 px-4 py-3 transition-all hover:shadow-sm hover:border-gray-300 dark:hover:border-slate-600 cursor-pointer"
-                                variants={listItemVariants}
-                                whileHover={{ x: 4, transition: { duration: 0.2 } }}
-                                onClick={() => setSelectedOutfitItem(item.key)}
-                              >
-                                <div className="flex items-center justify-between gap-3">
-                                  <div className="flex items-center gap-3">
-                                    {(() => {
-                                      const gearInfo = GEAR_INFO[item.key];
-                                      const Icon = GEAR_ICONS[item.key] || UserRound;
-                                      return gearInfo?.image ? (
-                                        <img 
-                                          src={gearInfo.image} 
-                                          alt={item.label} 
-                                          className="h-10 w-10 rounded-lg object-cover"
-                                        />
-                                      ) : (
-                                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 dark:bg-slate-700">
-                                          <Icon className="h-5 w-5 text-gray-600 dark:text-slate-300" />
-                                        </div>
-                                      );
-                                    })()}
-                                    <span className="text-sm font-semibold text-gray-800 dark:text-slate-100">{item.label}</span>
-                                  </div>
-                                  {(item.coldHands || item.workout || item.longRun) && (
-                                    <div className="flex items-center gap-1">
-                                      {item.workout && (
-                                        <span className="inline-flex items-center gap-1 rounded-full border border-amber-200/60 dark:border-amber-500/40 bg-amber-50/80 dark:bg-amber-500/20 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
-                                          <Flame className="h-3 w-3" /> Workout
-                                        </span>
-                                      )}
-                                      {item.longRun && (
-                                        <span className="inline-flex items-center gap-1 rounded-full border border-indigo-200/60 dark:border-indigo-500/40 bg-indigo-50/80 dark:bg-indigo-500/20 px-2 py-0.5 text-[10px] font-medium text-indigo-700 dark:text-indigo-300">
-                                          <TrendingUp className="h-3 w-3" /> Long
-                                        </span>
-                                      )}
-                                      {item.coldHands && (
-                                        <span className="inline-flex items-center gap-1 rounded-full border border-sky-200/60 dark:border-sky-500/40 bg-sky-50/80 dark:bg-sky-500/20 px-2 py-0.5 text-[10px] font-medium text-sky-700 dark:text-sky-300">
-                                          <Hand className="h-3 w-3" /> Cold
-                                        </span>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              </motion.div>
-                            ))}
-                          </motion.div>
-                          
-                          {!optionsDiffer ? (
-                            <motion.div 
-                              className="mt-4 rounded-xl border border-emerald-200/60 dark:border-emerald-500/30 bg-emerald-50/60 dark:bg-emerald-500/10 px-4 py-3"
-                              initial={{ opacity: 0, y: 10 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ delay: 0.3 }}
-                            >
-                              <div className="flex items-start gap-2">
-                                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/20 dark:bg-emerald-500/30 mt-0.5">
-                                  <svg className="h-3 w-3 text-emerald-600 dark:text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                                  </svg>
-                                </div>
-                                <p className="text-xs font-medium leading-relaxed text-emerald-800 dark:text-emerald-200">
-                                  Perfect alignment! Performance and comfort recommendations match today—this outfit optimizes both.
-                                </p>
-                              </div>
-                            </motion.div>
-                          ) : (
-                            <motion.div 
-                              className="mt-4 rounded-xl border border-blue-200/60 dark:border-blue-500/30 bg-blue-50/60 dark:bg-blue-500/10 px-4 py-3"
-                              initial={{ opacity: 0, y: 10 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ delay: 0.3 }}
-                            >
-                              <div className="flex items-start gap-2">
-                                <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
-                                <p className="text-xs font-medium leading-relaxed text-blue-800 dark:text-blue-200">
-                                  {activeOption === "A" 
-                                    ? "Performance-focused: Optimized for speed and efficiency. May sacrifice some warmth/comfort."
-                                    : "Comfort-focused: Prioritizes warmth and protection. May feel slightly overdressed during hard efforts."}
-                                </p>
-                              </div>
-                            </motion.div>
-                          )}
-                        </>
-                      ) : (
-                        <div className="space-y-2">
-                          {[1, 2, 3, 4].map((i) => (
-                            <div key={i} className="h-14 w-full animate-pulse rounded-xl bg-gray-100 dark:bg-slate-800/40" />
-                          ))}
-                        </div>
-                      )}
-                    </CardContent>
-                </Card>
+      <OutfitRecommendation
+        derived={derived}
+        optionsDiffer={optionsDiffer}
+        optionTitle={optionTitle}
+        activeOption={activeOption}
+        activeItems={activeItems}
+        setActiveOption={setActiveOption}
+        setSelectedOutfitItem={setSelectedOutfitItem}
+        staggerContainer={staggerContainer}
+        listItemVariants={listItemVariants}
+        cardVariants={cardVariants}
+      />
+
+      <motion.div className="flex flex-col gap-6 lg:col-start-1" variants={cardVariants}>
                 
                 {/* Today's Run Strategy Card */}
                 {derived?.approach && (
@@ -3660,182 +2724,20 @@ export default function App() {
     </div>
   </CardHeader>
   <CardContent className="space-y-4">
-    {/* Score Gauge */}
-    <div className="relative flex items-center justify-center">
-      <RadialBarChart width={240} height={240} cx={120} cy={120} innerRadius={80} outerRadius={105} barSize={20} data={gaugeData} startAngle={225} endAngle={-45}>
-        <PolarAngleAxis type="number" domain={[0, 100]} angleAxisId={0} tick={false} />
-        <RadialBar minAngle={15} background dataKey="value" clockWise cornerRadius={20} />
-      </RadialBarChart>
-      <div className="pointer-events-none absolute text-center">
-        <div className="text-6xl font-extrabold" style={displayedScoreProps?.tone?.textStyle}>
-          {displayedScoreProps ? displayedScoreProps.score : "--"}
-        </div>
-        <div className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">out of 100</div>
-      </div>
-    </div>
+    <WeatherGauge 
+      gaugeData={gaugeData}
+      displayedScoreProps={displayedScoreProps}
+      setShowInsights={setShowInsights}
+    />
 
-    {/* View Insights Button */}
-    <motion.button
-      onClick={() => setShowInsights(true)}
-      className="w-full rounded-xl border border-sky-200 dark:border-sky-500/30 bg-sky-50/60 dark:bg-sky-500/10 px-4 py-3 text-sm font-medium text-sky-700 dark:text-sky-300 hover:bg-sky-100/80 dark:hover:bg-sky-500/20 transition-colors flex items-center justify-center gap-2"
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-    >
-      <Info className="h-4 w-4" />
-      View Score Insights
-    </motion.button>
-
-    {/* Weather Details Grid */}
-    <motion.div 
-      className="grid grid-cols-2 gap-2.5"
-      variants={staggerContainer}
-      initial="initial"
-      animate="animate"
-    >
-      <motion.div 
-        className="flex items-center gap-2.5 rounded-xl border border-gray-200/40 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 p-3"
-        variants={listItemVariants}
-        whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
-      >
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100/80 dark:bg-sky-500/20">
-          <Thermometer className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-xs text-gray-600 dark:text-slate-400">Temp / Feels</div>
-          <div className="text-sm font-bold text-gray-700 dark:text-slate-100">
-            {wx && Number.isFinite(derived?.tempDisplay) && Number.isFinite(derived?.displayApparent) 
-              ? `${Math.round(derived.tempDisplay)}° / ${Math.round(derived.displayApparent)}°${unit}${derived.manualOn ? ' *' : ''}` 
-              : "--"}
-          </div>
-        </div>
-      </motion.div>
-      <motion.div 
-        className="flex items-center gap-2.5 rounded-xl border border-gray-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 p-3"
-        variants={listItemVariants}
-        whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
-      >
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-500/20">
-          <Droplets className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-xs text-gray-500 dark:text-slate-400">Dew Point</div>
-          <div className="text-sm font-bold text-gray-800 dark:text-slate-100">
-            {wx && Number.isFinite(derived?.dewPointDisplay) ? `${round1(derived.dewPointDisplay)}°${unit}` : "--"}
-          </div>
-        </div>
-      </motion.div>
-      {derived?.effectiveTempLabel === "WBGT" && (
-        <motion.div 
-          className="flex items-center gap-2.5 rounded-xl border border-gray-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 p-3"
-          variants={listItemVariants}
-          whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
-        >
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-500/20">
-            <Thermometer className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-xs text-gray-500 dark:text-slate-400">WBGT</div>
-            <div className="text-sm font-bold text-gray-800 dark:text-slate-100">
-              {wx && Number.isFinite(derived?.effectiveTempDisplay) ? `${round1(derived.effectiveTempDisplay)}°${unit}` : "--"}
-            </div>
-          </div>
-        </motion.div>
-      )}
-      <motion.div 
-        className="flex items-center gap-2.5 rounded-xl border border-gray-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 p-3"
-        variants={listItemVariants}
-        whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
-      >
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-500/20">
-          <Droplets className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-xs text-gray-500 dark:text-slate-400">Humidity</div>
-          <div className="text-sm font-bold text-gray-800 dark:text-slate-100">
-            {wx ? `${round1(wx.humidity)}%` : "--"}
-          </div>
-        </div>
-      </motion.div>
-      <motion.div 
-        className="flex items-center gap-2.5 rounded-xl border border-gray-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 p-3"
-        variants={listItemVariants}
-        whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
-      >
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-500/20">
-          <Wind className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-xs text-gray-500 dark:text-slate-400">Wind</div>
-          <div className="text-sm font-bold text-gray-800 dark:text-slate-100">
-            {wx ? `${round1(wx.wind)} mph` : "--"}
-          </div>
-        </div>
-      </motion.div>
-      <motion.div 
-        className="flex items-center gap-2.5 rounded-xl border border-gray-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 p-3"
-        variants={listItemVariants}
-        whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
-      >
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-500/20">
-          <CloudRain className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-xs text-gray-500 dark:text-slate-400">Precip</div>
-          <div className="text-sm font-bold text-gray-800 dark:text-slate-100">
-            {wx ? `${round1(wx.precipProb)}%` : "--"}
-          </div>
-        </div>
-      </motion.div>
-      <motion.div 
-        className="flex items-center gap-2.5 rounded-xl border border-gray-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 p-3"
-        variants={listItemVariants}
-        whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
-      >
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-500/20">
-          <Sun className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-xs text-gray-500 dark:text-slate-400">UV Index</div>
-          <div className="text-sm font-bold text-gray-800 dark:text-slate-100">
-            {wx ? round1(wx.uv) : "--"}
-          </div>
-        </div>
-      </motion.div>
-      <motion.div 
-        className="flex items-center gap-2.5 rounded-xl border border-gray-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 p-3"
-        variants={listItemVariants}
-        whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
-      >
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-500/20">
-          <Cloud className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-xs text-gray-500 dark:text-slate-400">Cloud Cover</div>
-          <div className="text-sm font-bold text-gray-800 dark:text-slate-100">
-            {wx ? `${round1(wx.cloud)}%` : "--"}
-          </div>
-        </div>
-      </motion.div>
-      {wx && (wx.humidity > 90 && Math.abs(wx.temperature - (derived?.dewPointDisplay || 0)) < 3) && (
-        <motion.div 
-          className="flex items-center gap-2.5 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50/60 dark:bg-amber-500/10 p-3"
-          variants={listItemVariants}
-          whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
-        >
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-500/20">
-            <CloudFog className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-xs text-amber-600 dark:text-amber-400">Fog Detected</div>
-            <div className="text-sm font-bold text-amber-800 dark:text-amber-200">
-              Low Visibility
-            </div>
-          </div>
-        </motion.div>
-      )}
-    </motion.div>
-
-    {/* Bottom-line recommendation - REMOVED, now in separate card */}
+    <WeatherMetrics
+      wx={wx}
+      derived={derived}
+      unit={unit}
+      listItemVariants={listItemVariants}
+      staggerContainer={staggerContainer}
+      round1={round1}
+    />
   </CardContent>
 </Card>
   </motion.div>
@@ -4480,13 +3382,12 @@ export default function App() {
           );
         })()}
 
-  <motion.footer 
-    className="mt-6 text-center text-sm text-gray-400 dark:text-slate-500"
-    variants={cardVariants}
-  >
-          <p>Weather by Open‑Meteo. Score blends real feel, dew point, wind, precip, UV, and heat/cold synergies.</p>
-        </motion.footer>
-      </motion.div>
+      <motion.footer 
+        className="mt-6 text-center text-sm text-gray-400 dark:text-slate-500"
+        variants={cardVariants}
+      >
+        <p>Weather by Open‑Meteo. Score blends real feel, dew point, wind, precip, UV, and heat/cold synergies.</p>
+      </motion.footer>
 
       <AnimatePresence>
         {/* Time Picker Modal */}
@@ -5612,81 +4513,58 @@ export default function App() {
                 >
                   {/* Factor Cards Grid */}
                   <div>
-                    <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
-                      {derived.breakdown.useWBGT ? 'WBGT Calculation Factors' : 'UTCI Calculation Factors'}
-                    </h3>
+                    <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">Impact Factors</h3>
                     <motion.div 
                       className="grid grid-cols-1 md:grid-cols-2 gap-3"
                       variants={staggerContainer}
                     >
                       {derived.breakdown.parts.map((part) => {
+                        const percentage = Math.round((part.penalty / part.max) * 100);
+                        const impactLevel = percentage > 70 ? 'high' : percentage > 40 ? 'medium' : 'low';
                         const impactColors = {
                           high: 'border-rose-200/60 dark:border-rose-500/30 bg-rose-50/60 dark:bg-rose-500/10',
                           medium: 'border-amber-200/60 dark:border-amber-500/30 bg-amber-50/60 dark:bg-amber-500/10',
                           low: 'border-emerald-200/60 dark:border-emerald-500/30 bg-emerald-50/60 dark:bg-emerald-500/10'
                         };
-                        const impactBadgeColors = {
-                          high: 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-700',
-                          medium: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700',
-                          low: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
+                        const barColors = {
+                          high: 'bg-rose-500 dark:bg-rose-400',
+                          medium: 'bg-amber-500 dark:bg-amber-400',
+                          low: 'bg-emerald-500 dark:bg-emerald-400'
                         };
                         
                         return (
                           <motion.div 
                             key={part.key} 
-                            className={`rounded-xl border p-4 ${impactColors[part.impact]}`}
+                            className={`rounded-xl border p-4 ${impactColors[impactLevel]}`}
                             variants={listItemVariants}
                             whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
                           >
-                            <div className="flex items-start justify-between gap-3 mb-3">
+                            <div className="flex items-start justify-between gap-3 mb-2">
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-1">
                                   <span className="text-sm font-bold text-gray-900 dark:text-slate-100">{part.label}</span>
-                                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${impactBadgeColors[part.impact]}`}>
-                                    {part.impact} impact
+                                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                                    -{Math.round(part.penalty)} pts
                                   </span>
                                 </div>
-                                <div className="text-2xl font-extrabold text-gray-900 dark:text-slate-100">
-                                  {part.value}
+                                <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-slate-700">
+                                  <div 
+                                    className={`h-full rounded-full transition-all ${barColors[impactLevel]}`}
+                                    style={{ width: `${Math.min(percentage, 100)}%` }}
+                                  />
                                 </div>
-                                {part.dewPoint && (
-                                  <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                                    Dew point: {part.dewPoint}
-                                  </div>
-                                )}
                               </div>
                             </div>
-                            <p className="text-xs leading-relaxed text-gray-700 dark:text-slate-300">{part.description}</p>
+                            <p className="text-xs leading-relaxed text-gray-700 dark:text-slate-300 mb-2">{part.why}</p>
+                            {part.tip && (
+                              <div className="mt-2 rounded-lg bg-white/60 dark:bg-slate-800/60 p-2 text-xs text-gray-600 dark:text-slate-300">
+                                <span className="font-semibold">💡 Tip: </span>{part.tip}
+                              </div>
+                            )}
                           </motion.div>
                         );
                       })}
                     </motion.div>
-                    
-                    {/* Result Summary */}
-                    {derived.breakdown.result && (
-                      <motion.div 
-                        className="mt-4 rounded-xl border-2 border-violet-300 dark:border-violet-600 bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40 p-4"
-                        variants={listItemVariants}
-                      >
-                        <div className="flex items-center justify-between gap-4">
-                          <div>
-                            <div className="text-sm font-bold text-violet-900 dark:text-violet-200 mb-1">
-                              {derived.breakdown.result.label}
-                            </div>
-                            <div className="text-3xl font-extrabold text-violet-700 dark:text-violet-300">
-                              {derived.breakdown.result.value}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-xs text-violet-600 dark:text-violet-400 mb-1">Impact on Score</div>
-                            <div className="text-2xl font-bold text-violet-900 dark:text-violet-200">
-                              {derived.breakdown.result.description.match(/Score: (\d+)/)?.[1] || score}/100
-                            </div>
-                          </div>
-                        </div>
-                        <p className="mt-3 text-xs leading-relaxed text-violet-800 dark:text-violet-300">{derived.breakdown.result.description}</p>
-                      </motion.div>
-                    )}
                   </div>
 
                   {/* Strategy Section - REMOVED, now has its own dedicated card */}
@@ -5793,81 +4671,61 @@ export default function App() {
 
                 {/* Factor Cards Grid */}
                 <div>
-                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
-                    {selectedHourData.breakdown.useWBGT ? 'WBGT Calculation Factors' : 'UTCI Calculation Factors'}
-                  </h3>
+                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">Impact Factors</h3>
                   <motion.div 
                     className="grid grid-cols-1 md:grid-cols-2 gap-3"
                     variants={staggerContainer}
                   >
                     {selectedHourData.breakdown.parts.map((part) => {
+                      const percentage = Math.round((part.penalty / part.max) * 100);
+                      const impactLevel = percentage > 70 ? 'high' : percentage > 40 ? 'medium' : 'low';
                       const impactColors = {
                         high: 'border-rose-200/60 dark:border-rose-500/30 bg-rose-50/60 dark:bg-rose-500/10',
                         medium: 'border-amber-200/60 dark:border-amber-500/30 bg-amber-50/60 dark:bg-amber-500/10',
                         low: 'border-emerald-200/60 dark:border-emerald-500/30 bg-emerald-50/60 dark:bg-emerald-500/10'
                       };
-                      const impactBadgeColors = {
-                        high: 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-700',
-                        medium: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700',
-                        low: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
+                      const barColors = {
+                        high: 'bg-rose-500 dark:bg-rose-400',
+                        medium: 'bg-amber-500 dark:bg-amber-400',
+                        low: 'bg-emerald-500 dark:bg-emerald-400'
                       };
                       
                       return (
                         <motion.div 
                           key={part.key} 
-                          className={`rounded-xl border p-4 ${impactColors[part.impact]}`}
+                          className={`rounded-xl border p-4 ${impactColors[impactLevel]}`}
                           variants={listItemVariants}
                           whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
                         >
-                          <div className="flex items-start justify-between gap-3 mb-3">
+                          <div className="flex items-start justify-between gap-3 mb-2">
                             <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-sm font-bold text-gray-900 dark:text-slate-100">{part.label}</span>
-                                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${impactBadgeColors[part.impact]}`}>
-                                  {part.impact} impact
+                              <div className="text-sm font-bold text-gray-900 dark:text-slate-100 mb-1">{part.label}</div>
+                              <div className="flex items-baseline gap-2">
+                                <span className="text-2xl font-extrabold text-gray-900 dark:text-slate-100">
+                                  -{Math.round(part.penalty)}
                                 </span>
+                                <span className="text-xs text-slate-500 dark:text-slate-400">points</span>
                               </div>
-                              <div className="text-2xl font-extrabold text-gray-900 dark:text-slate-100">
-                                {part.value}
-                              </div>
-                              {part.dewPoint && (
-                                <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                                  Dew point: {part.dewPoint}
-                                </div>
-                              )}
                             </div>
                           </div>
-                          <p className="text-xs leading-relaxed text-gray-700 dark:text-slate-300">{part.description}</p>
+                          <div className="mb-2">
+                            <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-slate-700">
+                              <div 
+                                className={`h-full rounded-full ${barColors[impactLevel]} transition-all duration-500`}
+                                style={{ width: `${percentage}%` }}
+                              />
+                            </div>
+                          </div>
+                          <p className="text-xs leading-relaxed text-gray-700 dark:text-slate-300 mb-2">{part.why}</p>
+                          {part.tip && (
+                            <div className="mt-2 rounded-lg bg-white/60 dark:bg-slate-800/60 p-2 text-xs text-gray-600 dark:text-slate-300">
+                              <span className="font-semibold">💡 Tip: </span>{part.tip}
+                            </div>
+                          )}
                         </motion.div>
                       );
                     })}
                   </motion.div>
-                  
-                  {/* Result Summary */}
-                  {selectedHourData.breakdown.result && (
-                    <motion.div 
-                      className="mt-4 rounded-xl border-2 border-violet-300 dark:border-violet-600 bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40 p-4"
-                      variants={listItemVariants}
-                    >
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <div className="text-sm font-bold text-violet-900 dark:text-violet-200 mb-1">
-                            {selectedHourData.breakdown.result.label}
-                          </div>
-                          <div className="text-3xl font-extrabold text-violet-700 dark:text-violet-300">
-                            {selectedHourData.breakdown.result.value}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xs text-violet-600 dark:text-violet-400 mb-1">Impact on Score</div>
-                          <div className="text-2xl font-bold text-violet-900 dark:text-violet-200">
-                            {selectedHourData.breakdown.result.description.match(/Score: (\d+)/)?.[1] || selectedHourDisplay?.score || '--'}/100
-                          </div>
-                        </div>
-                      </div>
-                      <p className="mt-3 text-xs leading-relaxed text-violet-800 dark:text-violet-300">{selectedHourData.breakdown.result.description}</p>
-                    </motion.div>
-                  )}
                 </div>
               </motion.div>
             </div>
@@ -5875,6 +4733,7 @@ export default function App() {
         </motion.div>
         )}
       </AnimatePresence>
-    </div>
+      </AppShell>
+    </>
   );
 }
