@@ -8,6 +8,7 @@ import { Card, CardHeader, CardTitle, CardContent, Button, Input, Label, Switch,
 import { APP_VERSION, DEFAULT_PLACE, DEFAULT_SETTINGS, FORECAST_ALERT_META, nominatimHeaders } from "./utils/constants";
 import { clamp, round1, msToMph, mmToInches, cToF, fToC, computeFeelsLike, blendWeather, getCurrentHourIndex } from "./utils/helpers";
 import { computeScoreBreakdown, calculateRoadConditions, makeApproachTips, calculateWBGT } from "./utils/runScore";
+import { NightRunningCard } from "./components/night";
 
 // iOS-specific styles for safe area and native feel
 if (typeof document !== 'undefined') {

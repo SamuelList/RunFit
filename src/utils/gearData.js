@@ -284,10 +284,10 @@ export const GEAR_INFO = {
   hydration: {
     name: "Water/Hydration",
     category: "Nutrition",
-    description: "Fluid replacement essential for performance and safety. Recommended based on WBGT (Wet Bulb Globe Temperature) heat stress.",
-    whenToWear: "WBGT 75°F+. Bring extra (2x) on long runs when WBGT ≥75°F due to cumulative heat stress.",
-    tips: "Handheld bottle, vest, or belt. Drink before you feel thirsty. Electrolytes for 90+ min runs. WBGT accounts for heat, humidity, sun, and wind—more accurate than temperature alone.",
-    tempRange: "WBGT 75°F and above",
+    description: "Fluid replacement essential for performance and safety.",
+    whenToWear: "Runs over 45 minutes, hot weather (75°F+), or high humidity (75%+).",
+    tips: "Handheld bottle, vest, or belt. Drink before you feel thirsty. Electrolytes for 90+ min runs.",
+    tempRange: "All temperatures",
     image: '/images/gear/hydration.png'
   },
   energy_nutrition: {
