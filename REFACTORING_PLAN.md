@@ -114,7 +114,7 @@ src/
       MoonPhaseVisual.jsx       // SVG moon display
       VisibilityMetrics.jsx     // Clarity calculations
       
-    tomorrow/
+    tomorrow/ EH!
       TomorrowOutfit.jsx        // Tomorrow's gear
       TimeSelector.jsx          // Hour picker
       
