@@ -1,0 +1,202 @@
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const degToRad = (deg) => (deg * Math.PI) / 180;
+const radToDeg = (rad) => (rad * 180) / Math.PI;
+
+const wrap360 = (x) => {
+  const wrapped = x % 360;
+  return wrapped < 0 ? wrapped + 360 : wrapped;
+};
+
+const julianDay = (year, month, day) => {
+  let y = year;
+  let m = month;
+  if (m <= 2) {
+    y -= 1;
+    m += 12;
+  }
+  const A = Math.floor(y / 100);
+  const B = 2 - A + Math.floor(A / 4);
+  return (
+    Math.floor(365.25 * (y + 4716)) +
+    Math.floor(30.6001 * (m + 1)) +
+    day +
+    B -
+    1524.5
+  );
+};
+
+const sunGeometry = (T) => {
+  const M = wrap360(357.52911 + T * (35999.05029 - 0.0001537 * T));
+  const C =
+    (1.914602 - T * (0.004817 + 0.000014 * T)) * Math.sin(degToRad(M)) +
+    (0.019993 - 0.000101 * T) * Math.sin(degToRad(2 * M)) +
+    0.000289 * Math.sin(degToRad(3 * M));
+  const lambda = wrap360(280.46646 + T * (36000.76983 + 0.0003032 * T) + C);
+  const omega = 125.04 - 1934.136 * T;
+  const lambdaApp = lambda - 0.00569 - 0.00478 * Math.sin(degToRad(omega));
+  const U = T / 100;
+  const eps0 =
+    23 +
+    (26 +
+      (21.448 -
+        U * (46.815 + U * (0.00059 - 0.001813 * U))) /
+        60) /
+      60;
+  const eps = eps0 + 0.00256 * Math.cos(degToRad(omega));
+  const sinDelta = Math.sin(degToRad(eps)) * Math.sin(degToRad(lambdaApp));
+  const delta = radToDeg(Math.asin(sinDelta));
+
+  const y = Math.tan(degToRad(eps / 2)) ** 2;
+  const L0 = wrap360(280.46646 + T * (36000.76983 + 0.0003032 * T));
+  const E =
+    4 *
+    radToDeg(
+      y * Math.sin(degToRad(2 * L0)) -
+        2 * 0.016708634 * Math.sin(degToRad(M)) +
+        4 * 0.016708634 * y * Math.sin(degToRad(M)) * Math.cos(degToRad(2 * L0)) -
+        0.5 * y * y * Math.sin(degToRad(4 * L0)) -
+        1.25 * 0.016708634 ** 2 * Math.sin(degToRad(2 * M))
+    );
+
+  return { declination: delta, equationOfTimeMinutes: E };
+};
+
+const hourAngle = (latDeg, declinationDeg, altitudeDeg) => {
+  const lat = degToRad(latDeg);
+  const dec = degToRad(declinationDeg);
+  const h0 = degToRad(altitudeDeg);
+  const cosH =
+    (Math.sin(h0) - Math.sin(lat) * Math.sin(dec)) /
+    (Math.cos(lat) * Math.cos(dec));
+  if (cosH < -1) return { angle: null, status: "always_above" };
+  if (cosH > 1) return { angle: null, status: "never_reaches" };
+  return { angle: radToDeg(Math.acos(cosH)), status: null };
+};
+
+const solarNoonUTC = (year, month, day, longitudeDeg, equationOfTimeMinutes) => {
+  const minutes = 720 - 4 * longitudeDeg - equationOfTimeMinutes;
+  const base = Date.UTC(year, month - 1, day);
+  return new Date(base + minutes * 60 * 1000);
+};
+
+const solarEventTimeUTC = ({
+  year,
+  month,
+  day,
+  latitude,
+  longitude,
+  altitudeDeg,
+  branch,
+}) => {
+  const jd = julianDay(year, month, day);
+  const T = (jd - 2451545.0) / 36525.0;
+  const { declination, equationOfTimeMinutes } = sunGeometry(T);
+  const { angle, status } = hourAngle(latitude, declination, altitudeDeg);
+  if (status || angle == null) return { time: null, status };
+
+  const noonUtc = solarNoonUTC(year, month, day, longitude, equationOfTimeMinutes);
+  const deltaHours = angle / 15;
+  const modifier = branch === "rise" ? -1 : 1;
+  const eventUtc = new Date(noonUtc.getTime() + modifier * deltaHours * 60 * 60 * 1000);
+  return { time: eventUtc.getTime(), status: null };
+};
+
+const zonedDateFormatterCache = new Map();
+
+const getZonedFormatter = (timeZone, optsKey, options) => {
+  const key = `${timeZone}__${optsKey}`;
+  if (zonedDateFormatterCache.has(key)) return zonedDateFormatterCache.get(key);
+  const formatter = new Intl.DateTimeFormat("en-US", { timeZone, ...options });
+  zonedDateFormatterCache.set(key, formatter);
+  return formatter;
+};
+
+const getZonedDateParts = (timeZone, timestamp) => {
+  const formatter = getZonedFormatter(timeZone, "ymd", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = formatter.formatToParts(new Date(timestamp));
+  const data = {};
+  for (const part of parts) {
+    if (part.type === "year" || part.type === "month" || part.type === "day") {
+      data[part.type] = Number(part.value);
+    }
+  }
+  return data;
+};
+
+const normalizeTimeZone = (timeZone) => {
+  if (typeof timeZone === "string" && timeZone.trim().length > 0) return timeZone;
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+};
+
+export function computeSunEvents({ timestamp = Date.now(), latitude, longitude, timeZone }) {
+  if (typeof latitude !== "number" || typeof longitude !== "number") {
+    return {
+      sunrise: [],
+      sunset: [],
+      civilDawn: [],
+      civilDusk: [],
+    };
+  }
+
+  const tz = normalizeTimeZone(timeZone);
+  const dayOffsets = [0, 1];
+  const results = {
+    sunrise: [],
+    sunset: [],
+    civilDawn: [],
+    civilDusk: [],
+  };
+
+  for (const offset of dayOffsets) {
+    const dayTimestamp = timestamp + offset * DAY_MS;
+    const { year, month, day } = getZonedDateParts(tz, dayTimestamp);
+    if (!year || !month || !day) continue;
+
+    const baseArgs = { year, month, day, latitude, longitude };
+
+    const sunrise = solarEventTimeUTC({
+      ...baseArgs,
+      altitudeDeg: -0.833,
+      branch: "rise",
+    });
+    if (sunrise.time != null) results.sunrise.push(sunrise.time);
+
+    const sunset = solarEventTimeUTC({
+      ...baseArgs,
+      altitudeDeg: -0.833,
+      branch: "set",
+    });
+    if (sunset.time != null) results.sunset.push(sunset.time);
+
+    const civilDawn = solarEventTimeUTC({
+      ...baseArgs,
+      altitudeDeg: -6,
+      branch: "rise",
+    });
+    if (civilDawn.time != null) results.civilDawn.push(civilDawn.time);
+
+    const civilDusk = solarEventTimeUTC({
+      ...baseArgs,
+      altitudeDeg: -6,
+      branch: "set",
+    });
+    if (civilDusk.time != null) results.civilDusk.push(civilDusk.time);
+  }
+
+  const sortAsc = (arr) => arr.sort((a, b) => a - b);
+  results.sunrise = sortAsc(results.sunrise);
+  results.sunset = sortAsc(results.sunset);
+  results.civilDawn = sortAsc(results.civilDawn);
+  results.civilDusk = sortAsc(results.civilDusk);
+
+  return results;
+}
+
+export function nextEventAfter(times = [], now = Date.now()) {
+  return times.find((t) => t > now) ?? null;
+}

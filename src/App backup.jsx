@@ -1,13 +1,6 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MapPin, Thermometer, Droplets, Wind, CloudRain, Sun, Hand, Info, Flame, Sunrise as SunriseIcon, Sunset as SunsetIcon, Settings as SettingsIcon, Crosshair, Moon, X, TrendingUp, Cloud, CloudFog, UserRound, Calendar, Lightbulb, Activity, Clock, Gauge } from "lucide-react";
-import { RadialBarChart, RadialBar, PolarAngleAxis } from "recharts";
 import { computeSunEvents } from "./utils/solar";
-import { GEAR_INFO, GEAR_ICONS } from "./utils/gearData";
-import { Card, CardHeader, CardTitle, CardContent, Button, Input, Label, Switch, SegmentedControl } from "./components/ui";
-import { APP_VERSION, DEFAULT_PLACE, DEFAULT_SETTINGS, FORECAST_ALERT_META, nominatimHeaders } from "./utils/constants";
-import { clamp, round1, msToMph, mmToInches, cToF, fToC, computeFeelsLike, blendWeather, getCurrentHourIndex } from "./utils/helpers";
-import { computeScoreBreakdown, calculateRoadConditions, makeApproachTips, calculateWBGT } from "./utils/runScore";
 
 // iOS-specific styles for safe area and native feel
 if (typeof document !== 'undefined') {
@@ -75,130 +68,16 @@ if (typeof document !== 'undefined') {
 }
 
 // --- Running Condition Indicator ---
-// Get running condition assessment based on WBGT (warm) or feels-like temp (cool)
-// Returns performance-focused guidance with research-backed thresholds
-function getRunningCondition(tempF, isWBGT = false) {
-  // Warm weather (using WBGT): Research-based heat stress zones
-  if (isWBGT) {
-    // WBGT >82°F: Extreme Heat - Danger (Black Flag)
-    if (tempF > 82) {
-      return { 
-        text: "Extreme danger — races cancelled, training strongly discouraged", 
-        textClass: "text-rose-900 dark:text-rose-200", 
-        badgeClass: "bg-rose-200/90 text-rose-900 border-rose-400/80 dark:bg-rose-950/40 dark:text-rose-200 dark:border-rose-800/60",
-        performance: "Life-threatening heat stress risk. Body cannot dissipate heat fast enough.",
-        action: "Cancel outdoor run. Heat stroke risk far outweighs any training benefit."
-      };
-    }
-    
-    // WBGT 73-82°F: Hot - High Risk (Red Flag)
-    if (tempF >= 73) {
-      return { 
-        text: "High risk — dramatically slower times, heat illness common", 
-        textClass: "text-rose-700 dark:text-rose-300", 
-        badgeClass: "bg-rose-100/80 text-rose-700 border-rose-300/60 dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500/40",
-        performance: "Expect 3-5%+ slower pace. Heat exhaustion and heat stroke spike in this range.",
-        action: "Only if heat-acclimated. Shorten distance 30-50%, add 60-90s/mile, take walk breaks every 10 min."
-      };
-    }
-    
-    // WBGT 65-73°F: Warm - Caution (Yellow Flag)
-    if (tempF >= 65) {
-      return { 
-        text: "Caution — performance declines ~0.3-0.4% per degree", 
-        textClass: "text-amber-600 dark:text-amber-400", 
-        badgeClass: "bg-amber-100/80 text-amber-700 border-amber-300/60 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40",
-        performance: "Expect 1-3% slower pace. Heat loss less efficient, fatigue comes sooner.",
-        action: "Slow easy pace 20-40s/mile, hydrate every 15 min, seek shade, monitor closely."
-      };
-    }
-    
-    // WBGT 50-65°F: Cool/Neutral - Ideal (Green Flag)
-    return { 
-      text: "Ideal — peak performance, minimal heat stress", 
-      textClass: "text-emerald-600 dark:text-emerald-400", 
-      badgeClass: "bg-emerald-100/80 text-emerald-700 border-emerald-300/60 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40",
-      performance: "Optimal zone for fast times. Body regulates temperature easily.",
-      action: "Go for it! Conditions support your best effort with minimal adjustments."
-    };
-  }
-  
-  // Cool weather (using feels-like temp): Cold stress and performance zones
-  
-  // Feels-like 41-54°F: PR Sweet Spot
-  if (tempF >= 41) {
-    return { 
-      text: "PR conditions — optimal for fast times", 
-      textClass: "text-emerald-600 dark:text-emerald-400", 
-      badgeClass: "bg-emerald-100/80 text-emerald-700 border-emerald-300/60 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40",
-      performance: "Perfect racing weather. Cool enough to prevent overheating, warm enough for muscle function.",
-      action: "Great day for tempo runs, intervals, or races. Dress light — you'll warm up fast."
-    };
-  }
-  
-  // Feels-like 30-40°F: Fast but Chilly
-  if (tempF >= 30) {
-    return { 
-      text: "Fast conditions — dress in layers", 
-      textClass: "text-sky-600 dark:text-sky-400", 
-      badgeClass: "bg-sky-100/80 text-sky-700 border-sky-300/60 dark:bg-sky-500/20 dark:text-sky-300 dark:border-sky-500/40",
-      performance: "Still good for performance. Extend warm-up 5-10 min, expect slight stiffness initially.",
-      action: "Layer appropriately, protect hands. You'll feel great once warmed up."
-    };
-  }
-  
-  // Feels-like 20-29°F: Cold
-  if (tempF >= 20) {
-    return { 
-      text: "Cold — performance impacted, discomfort increases", 
-      textClass: "text-blue-600 dark:text-blue-400", 
-      badgeClass: "bg-blue-100/80 text-blue-700 border-blue-300/60 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/40",
-      performance: "Expect 1-2% slower pace. Muscles need longer to warm up, breathing may be uncomfortable.",
-      action: "15 min warm-up, layer carefully, protect face/hands. Ease into your pace."
-    };
-  }
-  
-  // Feels-like 10-19°F: Very Cold
-  if (tempF >= 10) {
-    return { 
-      text: "Very cold — significant performance challenge", 
-      textClass: "text-indigo-600 dark:text-indigo-400", 
-      badgeClass: "bg-indigo-100/80 text-indigo-700 border-indigo-300/60 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border-indigo-500/40",
-      performance: "Expect 2-4% slower pace. Cold air strains breathing, extremities lose function.",
-      action: "Cover all skin, windproof layers critical. Shorten distance, focus on effort not pace."
-    };
-  }
-  
-  // Feels-like 0-9°F: Bitter
-  if (tempF >= 0) {
-    return { 
-      text: "Bitter cold — severe conditions", 
-      textClass: "text-violet-700 dark:text-violet-400", 
-      badgeClass: "bg-violet-100/80 text-violet-700 border-violet-300/60 dark:bg-violet-500/20 dark:text-violet-300 dark:border-violet-500/40",
-      performance: "Performance severely compromised. Breathing painful, frostbite risk on exposed skin.",
-      action: "Advanced runners only. Full face coverage, run near shelter, bring phone. Consider treadmill."
-    };
-  }
-  
-  // Feels-like -1 to -24°F: High Risk (Frostbite ~30 min)
-  if (tempF >= -24) {
-    return { 
-      text: "High risk — frostbite in ~30 min on exposed skin", 
-      textClass: "text-fuchsia-800 dark:text-fuchsia-300", 
-      badgeClass: "bg-fuchsia-100/80 text-fuchsia-800 border-fuchsia-300/60 dark:bg-fuchsia-950/40 dark:text-fuchsia-200 dark:border-fuchsia-800/60",
-      performance: "Performance irrelevant. Survival and injury prevention are priorities.",
-      action: "Treadmill strongly recommended. Outside: full coverage, run loops near warmth, alert someone."
-    };
-  }
-  
-  // Feels-like ≤-25°F: Danger (Frostbite ~15 min)
-  return { 
-    text: "Extreme danger — frostbite in ~15 min, training not recommended", 
-    textClass: "text-fuchsia-900 dark:text-fuchsia-200", 
-    badgeClass: "bg-fuchsia-200/90 text-fuchsia-900 border-fuchsia-400/80 dark:bg-fuchsia-950/40 dark:text-fuchsia-200 dark:border-fuchsia-800/60",
-    performance: "Life-threatening cold exposure. No performance benefit possible.",
-    action: "Cancel outdoor run. Extreme frostbite and hypothermia risk."
-  };
+function getRunningCondition(tempF) {
+  if (tempF >= 85) return { text: "Too hot/dangerous — avoid outdoor running", textClass: "text-rose-700", badgeClass: "bg-rose-100/80 text-rose-700 border-rose-300/60 dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500/40" };
+  if (tempF >= 75) return { text: "Hot — hydrate and shorten runs", textClass: "text-rose-600", badgeClass: "bg-rose-100/80 text-rose-700 border-rose-300/60 dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500/40" };
+  if (tempF >= 65) return { text: "Warm — slow pace, hydrate", textClass: "text-amber-600", badgeClass: "bg-amber-100/80 text-amber-700 border-amber-300/60 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40" };
+  if (tempF >= 55) return { text: "Comfortable", textClass: "text-emerald-600", badgeClass: "bg-emerald-100/80 text-emerald-700 border-emerald-300/60 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40" };
+  if (tempF >= 40) return { text: "Ideal — best performance", textClass: "text-emerald-600", badgeClass: "bg-emerald-100/80 text-emerald-700 border-emerald-300/60 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40" };
+  if (tempF >= 30) return { text: "Cool — light layers", textClass: "text-sky-600", badgeClass: "bg-sky-100/80 text-sky-700 border-sky-300/60 dark:bg-sky-500/20 dark:text-sky-300 dark:border-sky-500/40" };
+  if (tempF >= 20) return { text: "Cold — layer up, protect skin", textClass: "text-blue-600", badgeClass: "bg-blue-100/80 text-blue-700 border-blue-300/60 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/40" };
+  if (tempF >= 0) return { text: "Very cold — frostbite risk; cover extremities", textClass: "text-indigo-600", badgeClass: "bg-indigo-100/80 text-indigo-700 border-indigo-300/60 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border-indigo-500/40" };
+  return { text: "Extremely cold/dangerous — avoid outdoor running", textClass: "text-indigo-700", badgeClass: "bg-indigo-100/80 text-indigo-700 border-indigo-300/60 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border-indigo-500/40" };
 }
 
 // --- Configurable Thresholds for Gear Logic ---
@@ -206,10 +85,10 @@ const TIGHTS_TEMP_THRESHOLD = 48; // Below this adjT, add tights
 const SHORTS_TEMP_THRESHOLD = 60; // Above this adjT, add shorts
 const INSULATED_JACKET_TEMP_THRESHOLD = 15; // Above this T, switch to light jacket
 const RAIN_PROB_THRESHOLD = 50; // Precipitation probability (%) to add rain shell
-const RAIN_IN_THRESHOLD = 0.05; // Precipitation inches to add rain shell
+const RAIN_IN_THRESHOLD = 0.02; // Precipitation inches to add rain shell
 const WIND_BREAKER_THRESHOLD = 15; // Wind speed (mph) to add windbreaker
-const UV_INDEX_CAP_THRESHOLD = 6; // UV index to add cap/sunglasses/sunscreen
-const HUMIDITY_ANTI_CHAFE_THRESHOLD = 80; // Humidity (%) to add anti-chafe
+const UV_INDEX_CAP_THRESHOLD = 7; // UV index to add cap/sunglasses/sunscreen
+const HUMIDITY_ANTI_CHAFE_THRESHOLD = 75; // Humidity (%) to add anti-chafe
 const TEMP_ANTI_CHAFE_THRESHOLD = 65; // Temperature (F) to add anti-chafe
 const SOCKS_LIGHT_TEMP_THRESHOLD = 70; // Above this temp, use light socks
 const SOCKS_HUMIDITY_THRESHOLD = 70; // Humidity (%) for light socks
@@ -223,85 +102,13 @@ const WIND_MEDIUM_GLOVES_THRESHOLD = 12; // Wind speed (mph) to upgrade to mediu
 const WIND_MITTENS_THRESHOLD = 15; // Wind speed (mph) to switch to mittens
 
 // Cold hands preference: use warmer thresholds (trigger protection earlier)
-const COLD_HANDS_LIGHT_GLOVES_THRESHOLD = 60; // Cold hands: add light gloves below this
-const COLD_HANDS_MEDIUM_GLOVES_THRESHOLD = 42; // Cold hands: upgrade to medium gloves
-const COLD_HANDS_MITTENS_THRESHOLD = 30; // Cold hands: switch to mittens
-const COLD_HANDS_MITTENS_LINER_THRESHOLD = 18; // Cold hands: add liner
+const COLD_HANDS_LIGHT_GLOVES_THRESHOLD = 65; // Cold hands: add light gloves below this
+const COLD_HANDS_MEDIUM_GLOVES_THRESHOLD = 55; // Cold hands: upgrade to medium gloves
+const COLD_HANDS_MITTENS_THRESHOLD = 40; // Cold hands: switch to mittens
+const COLD_HANDS_MITTENS_LINER_THRESHOLD = 25; // Cold hands: add liner
 const COLD_HANDS_WIND_GLOVES_THRESHOLD = 5; // Cold hands: add gloves at lower wind speed
 const COLD_HANDS_WIND_MEDIUM_THRESHOLD = 8; // Cold hands: upgrade at lower wind
 const COLD_HANDS_WIND_MITTENS_THRESHOLD = 12; // Cold hands: mittens at lower wind
-
-// --- Scoring Temperature Thresholds ---
-// These control when temperature penalties reach their maximum (99 points)
-export const HEAT_PENALTY_MAX_TEMP = 90; // Temperature (°F) where heat penalty reaches maximum (99 points) - WBGT cutoff
-export const COLD_PENALTY_MAX_MULTIPLIER = 28; // Max penalty for cold (lower = more forgiving, max = 99)
-export const COLD_PENALTY_WIDTH_WORKOUT = 22; // Temperature range for cold penalty (workouts)
-export const COLD_PENALTY_WIDTH_EASY = 20; // Temperature range for cold penalty (easy/long runs)
-
-// --- Ideal Running Temperatures ---
-export const IDEAL_TEMP_WORKOUT = 43; // Ideal temperature for workouts (°F)
-export const IDEAL_TEMP_LONG_RUN = 48; // Ideal temperature for long runs (°F)
-export const IDEAL_TEMP_EASY = 50; // Ideal temperature for easy runs (°F)
-
-// --- Synergy Penalty Thresholds ---
-const HEAT_SYNERGY_TEMP_THRESHOLD = 100; // Temperature (°F) where heat synergy penalty starts
-
-// --- Dew Point Penalty Thresholds ---
-// Dew point measures humidity's effect on perceived temperature and sweat evaporation
-export const DEW_POINT_COMFORTABLE = 50; // Below this: 0 penalty
-export const DEW_POINT_SLIGHTLY_MUGGY = 55; // 50-55: 2 penalty
-export const DEW_POINT_MODERATE = 60; // 55-60: 5 penalty
-export const DEW_POINT_MUGGY = 65; // 60-65: 10 penalty
-export const DEW_POINT_VERY_HUMID = 70; // 65-70: 18 penalty
-export const DEW_POINT_OPPRESSIVE = 75; // 70-75: 28 penalty
-
-// --- Dew Point Penalty Values ---
-export const DEW_POINT_PENALTY_COMFORTABLE = 0;
-export const DEW_POINT_PENALTY_SLIGHTLY_MUGGY = 2;
-export const DEW_POINT_PENALTY_MODERATE = 5;
-export const DEW_POINT_PENALTY_MUGGY = 10;
-export const DEW_POINT_PENALTY_VERY_HUMID = 18;
-export const DEW_POINT_PENALTY_OPPRESSIVE = 28;
-export const DEW_POINT_PENALTY_DANGEROUS = 40;
-
-// --- High Humidity Penalty (App.jsx only) ---
-export const HUMIDITY_THRESHOLD = 80; // High humidity starts at 80%
-export const HUMIDITY_TEMP_THRESHOLD = 60; // Temperature threshold for humidity penalty
-export const HUMIDITY_PENALTY_MAX = 8; // Max penalty for high humidity
-
-// --- Wind Penalty Thresholds ---
-export const WIND_PENALTY_BASE_DIVISOR = 25; // Wind speed divisor for base penalty calculation
-export const WIND_PENALTY_MAX = 40; // Max wind penalty
-export const WIND_PENALTY_OFFSET = 2; // Wind speed offset (mph) before penalty starts
-
-// --- Precipitation Penalty Values ---
-export const PRECIP_PROB_PENALTY_MAX = 15; // Max penalty from precipitation probability
-export const PRECIP_AMOUNT_PENALTY_MAX = 20; // Max penalty from precipitation amount
-export const PRECIP_AMOUNT_MULTIPLIER = 160; // Multiplier for precipitation amount
-export const ICE_DANGER_TEMP = 34; // Temperature (°F) for ice danger with precipitation
-export const ICE_DANGER_PENALTY = 10; // Penalty for ice danger
-
-// --- UV Penalty Thresholds ---
-export const UV_BASE_THRESHOLD = 6; // UV index where penalty starts
-export const UV_PENALTY_MULTIPLIER = 2.5; // Multiplier for UV penalty
-export const UV_PENALTY_MAX = 10; // Max UV penalty (base)
-export const UV_WORKOUT_HEAT_TEMP = 70; // Temperature (°F) where workout UV penalty increases
-export const UV_WORKOUT_HEAT_PENALTY = 5; // Additional UV penalty for hot workouts
-export const UV_LONGRUN_THRESHOLD = 5; // UV threshold for long runs
-export const UV_LONGRUN_MULTIPLIER = 3; // Multiplier for long run UV penalty
-export const UV_LONGRUN_MAX = 15; // Max UV penalty for long runs
-export const UV_LONGRUN_HEAT_PENALTY = 3; // Additional UV penalty for hot long runs
-
-// --- Synergy Penalty Values ---
-export const COLD_SYNERGY_TEMP = 35; // Temperature (°F) where cold synergy starts
-export const COLD_SYNERGY_WIND_THRESHOLD = 10; // Wind speed (mph) where cold synergy increases
-export const COLD_SYNERGY_MULTIPLIER = 0.3; // Base multiplier for cold synergy
-export const COLD_SYNERGY_WIND_MULTIPLIER = 0.6; // Additional multiplier when windy
-
-export const HEAT_SYNERGY_DP_THRESHOLD = 70; // Dew point (°F) where heat synergy starts
-export const HEAT_SYNERGY_DP_MULTIPLIER = 0.6; // Multiplier for dew point heat synergy
-export const HEAT_SYNERGY_TEMP_DIVISOR = 5; // Temperature divisor for heat synergy calculation
-export const HEAT_SYNERGY_MAX_MULTIPLIER = 20; // Max multiplier for heat synergy
 
 // --- Comfort/score model ---
 function dewPointF(tempF, rh) {
@@ -312,96 +119,48 @@ function dewPointF(tempF, rh) {
   return (dpC * 9) / 5 + 32;
 }
 
-function computeRunningScore({ tempF, apparentF, humidity, windMph, precipProb, precipIn, uvIndex, pressure, solarRadiation, cloudCover }, workout, longRun) {
-  // Calculate a running score (0-100) based on weather conditions
-  // Higher score = better running conditions, lower score = worse conditions
-  // Score starts at 100 and subtracts penalties for various weather factors
-
-  // Step 1: Determine ideal temperature based on run type
-  // Workouts need cooler temps to prevent heat buildup during high effort
-  // Long runs need moderate temps to avoid temperature swings over time
-  // Easy runs are most flexible with temps around 50°F
-  const ideal = workout ? IDEAL_TEMP_WORKOUT : longRun ? IDEAL_TEMP_LONG_RUN : IDEAL_TEMP_EASY;
-
-  // Step 2: Set temperature penalty curve width based on run type
-  // Workouts have narrower cold tolerance (more sensitive to cold starts)
-  // Easy/long runs have wider cold tolerance (can warm up during run)
-  const coolWidth = workout ? COLD_PENALTY_WIDTH_WORKOUT : COLD_PENALTY_WIDTH_EASY;
-
-  // Step 3: Calculate dew point (humidity's effect on perceived temperature)
+function computeRunningScore({ tempF, apparentF, humidity, windMph, precipProb, precipIn, uvIndex }, workout, longRun) {
+  const ideal = workout ? 43 : longRun ? 48 : 50;
+  const coolWidth = workout ? 22 : 20;
   const dpF = dewPointF(tempF, humidity);
 
-  // Step 3.5: For warm weather (>60°F), use WBGT instead of apparent temperature
-  // WBGT accounts for humidity, sun, and wind in a scientifically validated way
-  const wbgtF = apparentF > 60 ? calculateWBGT({ 
-    tempF, 
-    humidity, 
-    windMph, 
-    pressureHPa: pressure, 
-    solarRadiationWm2: solarRadiation, 
-    cloudCover: cloudCover ?? 50 
-  }) : null;
-  
-  // Use WBGT for warm weather, apparent temp for cool/cold weather
-  const effectiveTemp = wbgtF !== null ? wbgtF : apparentF;
-
-  // Step 4: Calculate temperature penalty using asymmetric curves
-  // Warmer than ideal: exponential penalty (heat builds up fast)
-  // Cooler than ideal: quadratic penalty (cold is more tolerable, can warm up)
-  const diff = effectiveTemp - ideal;
-  const warmSpan = Math.max(5, HEAT_PENALTY_MAX_TEMP - ideal); // Heat penalty range (ideal to max temp)
+  const diff = apparentF - ideal;
+  const warmSpan = Math.max(5, 85 - ideal);
   const tempPenalty = diff >= 0
-    ? Math.pow(clamp(diff / warmSpan, 0, 1), 1.6) * 99  // Heat: exponential curve, max 99 penalty
-    : Math.pow(Math.abs(diff) / coolWidth, 2) * COLD_PENALTY_MAX_MULTIPLIER;       // Cold: quadratic curve
-
-  // Step 5: Calculate humidity penalty based on dew point thresholds
-  // Higher dew point = more moisture in air = harder to cool via sweat
+    ? Math.pow(clamp(diff / warmSpan, 0, 1), 1.6) * 99
+    : Math.pow(Math.abs(diff) / coolWidth, 2) * 28;
+  
   let dewpointPenalty;
-  if (dpF < DEW_POINT_COMFORTABLE) dewpointPenalty = DEW_POINT_PENALTY_COMFORTABLE;
-  else if (dpF < DEW_POINT_SLIGHTLY_MUGGY) dewpointPenalty = DEW_POINT_PENALTY_SLIGHTLY_MUGGY;
-  else if (dpF < DEW_POINT_MODERATE) dewpointPenalty = DEW_POINT_PENALTY_MODERATE;
-  else if (dpF < DEW_POINT_MUGGY) dewpointPenalty = DEW_POINT_PENALTY_MUGGY;
-  else if (dpF < DEW_POINT_VERY_HUMID) dewpointPenalty = DEW_POINT_PENALTY_VERY_HUMID;
-  else if (dpF < DEW_POINT_OPPRESSIVE) dewpointPenalty = DEW_POINT_PENALTY_OPPRESSIVE;
-  else dewpointPenalty = DEW_POINT_PENALTY_DANGEROUS;
+  if (dpF < 55) dewpointPenalty = 0;
+  else if (dpF < 60) dewpointPenalty = 3;
+  else if (dpF < 65) dewpointPenalty = 8;
+  else if (dpF < 70) dewpointPenalty = 15;
+  else if (dpF < 75) dewpointPenalty = 25;
+  else dewpointPenalty = 35;
 
-  // Step 6: Calculate humidity penalty (additional factor when hot + humid)
-  // Only applies when both hot AND humid (compounding effect)
-  const humidityPenalty = humidity > HUMIDITY_THRESHOLD && apparentF > HUMIDITY_TEMP_THRESHOLD ? Math.pow((humidity - HUMIDITY_THRESHOLD) / 20, 2) * HUMIDITY_PENALTY_MAX : 0;
+  const humidityPenalty = humidity > 80 && apparentF > 60 ? Math.pow((humidity - 80) / 20, 2) * 8 : 0;
 
-  // Step 7: Calculate wind penalty (context-dependent)
-  // Wind can help (cooling in heat) or hurt (resistance + wind chill in cold)
-  const windPenalty = Math.pow(Math.max(0, windMph - WIND_PENALTY_OFFSET) / WIND_PENALTY_BASE_DIVISOR, 2) * WIND_PENALTY_MAX;
-
-  // Step 8: Calculate precipitation penalty
-  // Based on probability + amount, with extra penalty for ice danger
-  const precipPenalty = Math.min(Math.max((precipProb / 100) * PRECIP_PROB_PENALTY_MAX, 0), PRECIP_PROB_PENALTY_MAX) + Math.min(Math.max(precipIn * PRECIP_AMOUNT_MULTIPLIER, 0), PRECIP_AMOUNT_PENALTY_MAX) + (apparentF <= ICE_DANGER_TEMP && precipIn > 0 ? ICE_DANGER_PENALTY : 0);
-
-  // Step 9: Calculate UV penalty (sun exposure risk)
-  // Higher for workouts (heat + sun = double trouble) and long runs (more exposure time)
-  let uvPenalty = Math.min(Math.max(Math.max(0, uvIndex - UV_BASE_THRESHOLD) * UV_PENALTY_MULTIPLIER, 0), UV_PENALTY_MAX);
-  if (workout && apparentF >= UV_WORKOUT_HEAT_TEMP) uvPenalty += UV_WORKOUT_HEAT_PENALTY;
+  const windPenalty = Math.pow(Math.max(0, windMph - 2) / 25, 2) * 40;
+  const precipPenalty = Math.min(Math.max((precipProb / 100) * 15, 0), 15) + Math.min(Math.max(precipIn * 160, 0), 20) + (apparentF <= 34 && precipIn > 0 ? 10 : 0);
+  let uvPenalty = Math.min(Math.max(Math.max(0, uvIndex - 6) * 2.5, 0), 10);
+  if (workout && apparentF >= 70) uvPenalty += 5;
   if (longRun) {
-    uvPenalty = Math.min(Math.max(Math.max(0, uvIndex - UV_LONGRUN_THRESHOLD) * UV_LONGRUN_MULTIPLIER, 0), UV_LONGRUN_MAX); // Long runs more UV sensitive
-    if (apparentF >= UV_WORKOUT_HEAT_TEMP) uvPenalty += UV_LONGRUN_HEAT_PENALTY; // Extra heat buildup over time
+    uvPenalty = Math.min(Math.max(Math.max(0, uvIndex - 5) * 3, 0), 15); // Long runs more UV sensitive
+    if (apparentF >= 70) uvPenalty += 3; // Extra heat buildup over time
   }
 
-  // Step 10: Calculate synergy penalties (compounding weather effects)
-  // Cold synergy: wind + cold = dangerous wind chill
-  // Heat synergy: humidity + heat = heat illness risk
-  const synergyCold = apparentF < COLD_SYNERGY_TEMP ? (COLD_SYNERGY_TEMP - apparentF) * COLD_SYNERGY_MULTIPLIER * (windMph > COLD_SYNERGY_WIND_THRESHOLD ? COLD_SYNERGY_WIND_MULTIPLIER : 0) : 0;
-  const synergyHeat = (dpF > HEAT_SYNERGY_DP_THRESHOLD ? (dpF - HEAT_SYNERGY_DP_THRESHOLD) * HEAT_SYNERGY_DP_MULTIPLIER : 0) + (apparentF > HEAT_SYNERGY_TEMP_THRESHOLD ? Math.pow((apparentF - HEAT_SYNERGY_TEMP_THRESHOLD) / HEAT_SYNERGY_TEMP_DIVISOR, 2) * HEAT_SYNERGY_MAX_MULTIPLIER : 0);
+  const synergyCold = apparentF < 35 ? (35 - apparentF) * 0.3 * (windMph > 10 ? 0.6 : 0) : 0;
+  const synergyHeat = (dpF > 70 ? (dpF - 70) * 0.6 : 0) + (apparentF > 85 ? Math.pow((apparentF - 85) / 5, 2) * 20 : 0);
 
-  // Step 11: Sum all penalties and ensure bounds (0-99)
   let penalties = tempPenalty + dewpointPenalty + humidityPenalty + windPenalty + precipPenalty + uvPenalty + synergyCold + synergyHeat;
   return Math.min(Math.max(Math.round(100 - Math.min(Math.max(penalties, 0), 99)), 0), 100);
 }
 
 function scoreLabel(score) {
   if (score >= 85) return { text: "Excellent", tone: "Great time to fly" };
-  if (score >= 65) return { text: "Good", tone: "Solid conditions" };
-  if (score >= 45) return { text: "Fair", tone: "Manageable with tweaks" };
-  if (score >= 25) return { text: "Challenging", tone: "Proceed with care" };
+  if (score >= 70) return { text: "Good", tone: "Solid conditions" };
+  if (score >= 55) return { text: "Fair", tone: "Manageable with tweaks" };
+  if (score >= 40) return { text: "Challenging", tone: "Proceed with care" };
   return { text: "Tough", tone: "Consider cross-training" };
 }
 
@@ -463,56 +222,498 @@ function scoreTone(score, apparentF) {
   };
 }
 
-function scoreBasedTone(score) {
-  // Score-based gradient: purple (poor) -> red -> yellow -> green (excellent)
-  // Based on score ranges: 1-10 (purple to red), 10-50 (red to yellow), 50-100 (yellow to green)
+// --- Run Score: detailed breakdown & tips ---
+function computeScoreBreakdown(
+  { tempF, apparentF, humidity, windMph, precipProb, precipIn, uvIndex },
+  workout,
+  coldHands,
+  handsLevel,
+  longRun = false
+) {
+  const ideal = workout ? 43 : longRun ? 48 : 50;
+  const coolWidth = workout ? 22 : longRun ? 18 : 20;
+  const dpF = dewPointF(tempF, humidity);
+
+  const diff = apparentF - ideal;
+  const warmSpan = Math.max(5, 85 - ideal);
   
-  // Define color stops: purple (poor) -> red -> yellow -> green (excellent)
-  const purple = { r: 147, g: 51, b: 234 };    // purple-600
-  const red = { r: 239, g: 68, b: 68 };        // red-500
-  const yellow = { r: 234, g: 179, b: 8 };     // yellow-500
-  const green = { r: 34, g: 197, b: 94 };      // green-500
+  // Enhanced temperature penalty with better curve
+  const tempPenalty =
+    diff >= 0
+      ? Math.pow(clamp(diff / warmSpan, 0, 1), 1.6) * 99
+      : Math.pow(Math.abs(diff) / coolWidth, 2) * 28;
+
+  // Smarter humidity penalty using dew point thresholds
+  let humidityPenalty;
+  if (dpF < 50) humidityPenalty = 0;
+  else if (dpF < 55) humidityPenalty = 2;
+  else if (dpF < 60) humidityPenalty = 5;
+  else if (dpF < 65) humidityPenalty = 10;
+  else if (dpF < 70) humidityPenalty = 18;
+  else if (dpF < 75) humidityPenalty = 28;
+  else humidityPenalty = 40;
+
+  // Wind penalty scales with temperature context
+  const windBasePenalty = Math.pow(Math.max(0, windMph - 2) / 25, 2) * 40;
+  const windTempMultiplier = apparentF < 40 ? 1.4 : apparentF > 75 ? 0.7 : 1.0;
+  const windPenalty = windBasePenalty * windTempMultiplier;
+
+  // Enhanced precipitation penalty with ice danger
+  const precipBasePenalty = Math.min(Math.max((precipProb / 100) * 15, 0), 15) +
+    Math.min(Math.max(precipIn * 160, 0), 20);
+  const iceDanger = apparentF <= 34 && precipIn > 0 ? 15 : apparentF <= 38 && precipProb > 40 ? 8 : 0;
+  const precipPenalty = precipBasePenalty + iceDanger;
+
+  // UV penalty with workout heat interaction
+  let uvPenalty = Math.min(Math.max(Math.max(0, uvIndex - 6) * 2.5, 0), 10);
+  if (workout && apparentF >= 70) uvPenalty += 5;
+  if (longRun && uvIndex >= 8) uvPenalty += 3;
+
+  // Cold synergy: wind + cold compounds risk
+  const windChill = apparentF < 50 && windMph > 5 
+    ? 35.74 + 0.6215 * apparentF - 35.75 * Math.pow(windMph, 0.16) + 0.4275 * apparentF * Math.pow(windMph, 0.16)
+    : apparentF;
+  const synergyCold = apparentF < 35 
+    ? Math.max(0, (35 - windChill) * 0.5)
+    : 0;
+
+  // Heat synergy: humidity + heat is exponentially worse
+  const heatStress = apparentF > 75 && dpF > 60 
+    ? Math.pow((apparentF - 75) / 10, 1.8) * Math.pow((dpF - 60) / 10, 1.5) * 15
+    : 0;
+  const synergyHeat = (dpF > 70 ? (dpF - 70) * 0.8 : 0) + heatStress;
+
+  // Cold hands personal penalty
+  const coldHandsPenalty = coldHands ? (handsLevel || 0) * 2 : 0;
+
+  let penalties =
+    tempPenalty +
+    humidityPenalty +
+    windPenalty +
+    precipPenalty +
+    uvPenalty +
+    synergyCold +
+    synergyHeat +
+    coldHandsPenalty;
+  penalties = Math.min(Math.max(penalties, 0), 99);
+
+  const rawScore = Math.round(100 - penalties);
+  const score = Math.min(Math.max(rawScore, 0), 100);
+
+  // Smart, context-aware explanations and tips
+  const getTempTip = () => {
+    if (diff >= 0) {
+      if (diff > 35) return "Dangerous heat—consider moving indoors. If outside: run very easy, take walk breaks every 5-10 min, pour water on head/neck.";
+      if (diff > 25) return "Extreme heat stress—shorten distance 30-50%, slow pace 60-90s/mile, run early morning (before 7am) or late evening only.";
+      if (diff > 15) return "Significant heat—reduce intensity, add 30-60s/mile to easy pace, walk through aid/water stops to keep heart rate controlled.";
+      if (diff > 8) return "Moderately warm—slow easy pace by 15-30s/mile, sip water every 15-20 min, choose shaded routes.";
+      return "Slightly warm—dress lighter than you think, stay hydrated, you'll feel great once you warm up.";
+    } else {
+      const absDiff = Math.abs(diff);
+      if (absDiff > 25) return "Dangerous cold—indoor run strongly recommended. Outside: cover all skin, run loops near shelter, bring phone + tell someone your route.";
+      if (absDiff > 15) return "Very cold—extend warm-up to 15 min, dress in layers, protect face + extremities. Watch for ice patches.";
+      if (absDiff > 8) return "Cold start—add 5-10 min warm-up, wear gloves + hat, you'll shed layers after 10-15 min of running.";
+      if (absDiff > 3) return "Slightly cool—ideal for faster paces once warmed up. One light extra layer for the first mile.";
+      return "Perfect temperature—minimal adjustments needed.";
+    }
+  };
+
+  const getHumidityTip = () => {
+    if (dpF >= 75) return "Oppressive humidity—sweat won't evaporate. Slow pace 45-75s/mile, take walk breaks, hydrate every 10 min. Heat illness escalates fast.";
+    if (dpF >= 70) return "Very humid—cooling is impaired. Reduce effort 10-15%, extra hydration, seek shade, plan bailout points.";
+    if (dpF >= 65) return "Muggy conditions—expect to feel warmer than thermometer suggests. Slow 20-30s/mile, stay hydrated, use anti-chafe liberally.";
+    if (dpF >= 60) return "Moderate humidity—slight impact on cooling. Stay on top of hydration, adjust pace by feel.";
+    if (dpF >= 55) return "Comfortable humidity—minimal impact. Normal hydration strategy works fine.";
+    return "Low humidity—optimal evaporative cooling. Great day for pushing pace.";
+  };
+
+  const getWindTip = () => {
+    if (apparentF < 40 && windMph >= 15) return "Dangerous wind chill—frostbite possible in 30 min. Cover all skin, windproof outer layer required. Indoor run recommended.";
+    if (windMph >= 20) return "Very strong winds—plan short out-and-back (start into wind). Accept 20-40s/mile slower into headwind. Use buildings/trees for wind breaks.";
+    if (windMph >= 15) return "Strong winds—tactical route planning matters. Start into wind, finish with tailwind when tired. Effort > pace today.";
+    if (windMph >= 10 && apparentF < 50) return "Breezy + cold combo—windproof layer helps. Face wind early, save tailwind for when you're fatigued.";
+    if (windMph >= 10) return "Moderate winds—slight aerodynamic drag. Plan loops to alternate wind directions, or embrace it as resistance training.";
+    return "Calm conditions—wind won't be a factor today.";
+  };
+
+  const getPrecipTip = () => {
+    if (apparentF <= 34 && (precipProb >= 40 || precipIn > 0.02)) return "DANGER: Ice/freezing rain likely. Treadmill strongly recommended. Outside = high injury risk from falls.";
+    if (precipProb >= 80 || precipIn > 0.25) return "Heavy rain expected—waterproof shell + cap mandatory. Change routes to avoid trail/unpaved (will be muddy). Dry socks + shoes ready post-run.";
+    if (precipProb >= 60 || precipIn > 0.1) return "Likely rain—bring packable shell even if dry at start. Avoid painted road markings (slick when wet). Body Glide on feet prevents wet blisters.";
+    if (precipProb >= 40) return "Rain possible—check radar before heading out. Cap keeps rain off face, rain shell in pocket as insurance.";
+    if (precipProb >= 20) return "Slight rain chance—probably fine without rain gear, but check forecast right before you go.";
+    return "Dry conditions expected—no rain gear needed.";
+  };
+
+  const getUVTip = () => {
+    if (uvIndex >= 9) return "Extreme UV—skin damage in 15 min. SPF 50+ required, reapply if sweating heavily. Sunglasses + visor/cap mandatory. Run before 9am or after 5pm.";
+    if (uvIndex >= 7) return "Very high UV—SPF 30+ sunscreen 20 min before run. Cover shoulders, wear hat + sunglasses. Early morning or evening strongly preferred.";
+    if (uvIndex >= 5) return "High UV—sunscreen recommended for runs >30 min. Wear a cap, consider arm sleeves for long runs.";
+    if (uvIndex >= 3) return "Moderate UV—sunscreen for runs >60 min or if fair-skinned. Less concern in early morning/evening.";
+    return "Low UV—minimal sun protection needed today.";
+  };
+
+  const parts = [
+    {
+      key: "temperature",
+      label: "Temperature",
+      penalty: tempPenalty,
+      why: diff >= 0
+        ? `Feels ${Math.round(diff)}°F warmer than ideal for ${workout ? 'workouts' : longRun ? 'long runs' : 'easy runs'} (${ideal}°F)`
+        : `Feels ${Math.round(Math.abs(diff))}°F cooler than ideal (${ideal}°F)`,
+      tip: getTempTip(),
+      max: 99,
+    },
+    {
+      key: "humidity",
+      label: "Humidity",
+      penalty: humidityPenalty,
+      why: `Dew point ${Math.round(dpF)}°F — ${dpF >= 70 ? 'very high' : dpF >= 60 ? 'elevated' : dpF >= 55 ? 'moderate' : 'comfortable'} moisture in air`,
+      tip: getHumidityTip(),
+      max: 40,
+    },
+    {
+      key: "wind",
+      label: "Wind",
+      penalty: windPenalty,
+      why: windMph >= 15 
+        ? `Strong ${Math.round(windMph)} mph winds ${apparentF < 40 ? '+ cold = wind chill danger' : '= high aerodynamic cost'}`
+        : `${Math.round(windMph)} mph winds ${apparentF < 50 ? 'increasing cold perception' : 'adding resistance'}`,
+      tip: getWindTip(),
+      max: apparentF < 40 ? 25 : 18,
+    },
+    {
+      key: "precip",
+      label: "Precipitation",
+      penalty: precipPenalty,
+      why: iceDanger > 0
+        ? `${Math.round(precipProb)}% precip chance + freezing temps = ICE RISK`
+        : `${Math.round(precipProb)}% chance, ${precipIn.toFixed(2)}" expected`,
+      tip: getPrecipTip(),
+      max: 50,
+    },
+    {
+      key: "uv",
+      label: "UV / Sun",
+      penalty: uvPenalty,
+      why: `UV index ${Math.round(uvIndex)}${uvIndex >= 8 ? ' — skin damage risk' : uvIndex >= 6 ? ' — high exposure' : ''}`,
+      tip: getUVTip(),
+      max: workout ? 15 : longRun ? 13 : 10,
+    },
+    {
+      key: "coldSynergy",
+      label: "Wind Chill",
+      penalty: synergyCold,
+      why: synergyCold > 0
+        ? `Feels like ${Math.round(windChill)}°F (${Math.round(apparentF - windChill)}°F colder due to wind) — frostbite risk`
+        : "—",
+      tip: synergyCold > 0 ? "Cover all exposed skin—ears, face, hands. Windproof layers critical. Frostbite can occur in <30 min in severe wind chill." : "",
+      max: 20,
+    },
+    {
+      key: "heatSynergy",
+      label: "Heat Stress",
+      penalty: synergyHeat,
+      why: synergyHeat > 0
+        ? `Heat + humidity = compounding thermal load. Effective temp feels ${Math.round(apparentF + (dpF - 60) * 0.5)}°F`
+        : "—",
+      tip: synergyHeat > 0 ? "Heat illness develops fast in humid heat—slow pace significantly, hydrate aggressively, pour water on head/neck, take walk breaks liberally." : "",
+      max: 35,
+    },
+    {
+      key: "coldPref",
+      label: "Cold Sensitivity",
+      penalty: coldHandsPenalty,
+      why: coldHandsPenalty > 0
+        ? `Personal cold sensitivity factored in (protection level ${handsLevel})`
+        : "—",
+      tip: coldHandsPenalty > 0 ? "Your cold sensitivity means extra hand/body protection is needed in conditions others might tolerate." : "",
+      max: 8,
+    },
+  ];
+
+  const total = parts.reduce((a, p) => a + p.penalty, 0);
+  const visibleParts = parts
+    .filter((p) => p.penalty >= 0.5)
+    .sort((a, b) => b.penalty - a.penalty)
+    .map((p) => ({
+      ...p,
+      sharePct: total > 0 ? Math.round((p.penalty / total) * 100) : 0,
+      sev:
+        p.penalty >= 20 ? "high" : p.penalty >= 8 ? "med" : p.penalty > 0 ? "low" : "none",
+    }));
+
+  const dominantKeys = visibleParts.slice(0, 2).map((p) => p.key);
+  return { score, parts: visibleParts, total, ideal, dpF, dominantKeys };
+}
+
+// Calculate road condition warnings based on weather
+function calculateRoadConditions({ tempF, apparentF, precipProb, precip, cloudCover }) {
+  const warnings = [];
+  let severity = 'safe'; // safe, caution, warning, danger
   
-  let color;
-  if (score <= 10) {
-    // Interpolate from purple to red (1-10)
-    const t = (score - 1) / (10 - 1);
-    color = lerpColor(purple, red, clamp(t, 0, 1));
-  } else if (score <= 50) {
-    // Interpolate from red to yellow (10-50)
-    const t = (score - 10) / (50 - 10);
-    color = lerpColor(red, yellow, clamp(t, 0, 1));
-  } else {
-    // Interpolate from yellow to green (50-100)
-    const t = (score - 50) / (100 - 50);
-    color = lerpColor(yellow, green, clamp(t, 0, 1));
+  // Freezing conditions with precipitation = ice risk
+  if (tempF <= 32 && (precipProb > 20 || precip > 0)) {
+    severity = 'danger';
+    warnings.push({
+      type: 'ice',
+      level: 'danger',
+      message: 'Black ice likely on roads and sidewalks',
+      advice: 'Avoid running outdoors. Treadmill strongly recommended. If you must run outside, choose well-salted main roads and wear trail shoes with aggressive tread. Shorten your stride significantly.'
+    });
+  }
+  // Near-freezing with recent/current precip
+  else if (tempF > 32 && tempF <= 35 && precipProb > 40) {
+    severity = severity === 'danger' ? 'danger' : 'warning';
+    warnings.push({
+      type: 'ice',
+      level: 'warning',
+      message: 'Potential for icy patches in shaded areas',
+      advice: 'Use extreme caution on bridges, overpasses, and shaded sections. Test footing before committing to speed. Consider postponing to afternoon when temps rise.'
+    });
   }
   
-  const rgb = `rgb(${color.r}, ${color.g}, ${color.b})`;
-  const lightBg = `rgba(${color.r}, ${color.g}, ${color.b}, 0.1)`;
-  const border = `rgba(${color.r}, ${color.g}, ${color.b}, 0.3)`;
+  // Heavy rain = slippery surfaces
+  if (precipProb > 70 || precip > 0.2) {
+    severity = severity === 'danger' ? 'danger' : 'warning';
+    warnings.push({
+      type: 'wet',
+      level: 'warning',
+      message: 'Slippery roads and reduced visibility',
+      advice: 'Avoid painted road markings, manhole covers, and metal grates—extremely slippery when wet. Shorten stride and increase cadence for better traction. Stay visible with bright colors and reflective gear.'
+    });
+  }
+  // Moderate rain
+  else if (precipProb > 40 || precip > 0.05) {
+    severity = severity === 'danger' || severity === 'warning' ? severity : 'caution';
+    warnings.push({
+      type: 'wet',
+      level: 'caution',
+      message: 'Wet road surfaces possible',
+      advice: 'Watch for puddles hiding potholes. Leaves and debris become slippery when wet. Give extra space when crossing driveways (oil residue + water = slick).'
+    });
+  }
+  
+  // Low visibility conditions
+  if (cloudCover > 85 && (precipProb > 50 || precip > 0.1)) {
+    severity = severity === 'danger' ? 'danger' : severity === 'warning' ? 'warning' : 'caution';
+    warnings.push({
+      type: 'visibility',
+      level: 'caution',
+      message: 'Reduced visibility for drivers',
+      advice: 'Wear bright/reflective clothing even during daytime. Make eye contact with drivers at intersections. Use sidewalks and crosswalks—don\'t assume you\'re seen.'
+    });
+  }
+  
+  // Heat = no road issues but surface heat warning
+  if (apparentF >= 85) {
+    severity = severity === 'danger' || severity === 'warning' ? severity : 'caution';
+    warnings.push({
+      type: 'heat',
+      level: 'caution',
+      message: 'Hot pavement can reach 140-160°F',
+      advice: 'Choose light-colored asphalt or concrete over dark pavement where possible. Run on grass/dirt paths if available—significantly cooler. Peak surface temps occur 2-4pm; run early morning or evening.'
+    });
+  }
   
   return {
-    textClass: "",
-    textStyle: { color: rgb },
-    badgeClass: "",
-    badgeStyle: { 
-      backgroundColor: lightBg, 
-      color: rgb, 
-      borderColor: border 
-    },
-    fillColor: rgb
+    severity,
+    warnings,
+    hasWarnings: warnings.length > 0
   };
+}
+
+function makeApproachTips({ score, parts, dpF, apparentF, windMph, precipProb, workout, longRun = false, tempChange = 0, willRain = false, roadConditions = null, runnerBoldness = 0 }) {
+  const tops = parts.slice(0, 2).map((p) => p.key);
+  const tips = [];
+
+  // Adjust score thresholds based on runner boldness
+  // Boldness +2 (badass): More tolerant, fewer warnings, thresholds shift 10-15 points lower
+  // Boldness -2 (cautious): More warnings, earlier alerts, thresholds shift 10-15 points higher
+  const boldnessAdjust = runnerBoldness * 7; // Each notch = 7 point adjustment
+  const adjustedScore = score + boldnessAdjust;
+
+  // Intelligent condition detection for multi-factor interactions
+  const isExtremeCold = apparentF <= 10;
+  const isVeryCold = apparentF <= 32;
+  const isExtremeHeat = apparentF >= 85;
+  const isVeryHot = apparentF >= 75;
+  const isHumid = dpF >= 65;
+  const isVeryHumid = dpF >= 70;
+  const isWindy = windMph >= 15;
+  const isVeryWindy = windMph >= 20;
+  const isIcyConditions = apparentF <= 34 && (precipProb >= 30 || (parts.find(p => p.key === 'precip')?.penalty || 0) > 5);
+  const heatHumidityDanger = isVeryHot && isVeryHumid;
+  const coldWindDanger = isVeryCold && isWindy;
+
+  // Natural, coach-like guidance - speak to the runner like a human (adjusted by boldness)
+  if (adjustedScore >= 85) {
+    // Perfect conditions - enthusiastic!
+    if (workout) {
+      tips.push("Great day for a hard workout! Conditions are dialed in.");
+    } else if (longRun) {
+      tips.push("Beautiful day for miles. Enjoy it out there.");
+    } else {
+      tips.push("Perfect running weather. Get after it!");
+    }
+  } else if (adjustedScore >= 70) {
+    // Good conditions - just a heads up
+    if (workout) {
+      tips.push("Solid conditions for speed work. You might feel a bit more effort than usual, but nothing major.");
+    } else if (longRun) {
+      tips.push("Good day for your long run. Expect to work a touch harder, but you'll be fine.");
+    } else {
+      tips.push("Nice day for a run. Just run by feel rather than chasing the watch.");
+    }
+  } else if (adjustedScore >= 55) {
+    // Getting challenging - real talk
+    if (workout) {
+      tips.push("Tough day for intervals. Shorten the reps or convert to a tempo if you're not feeling it. No shame in being smart.");
+    } else if (longRun) {
+      tips.push("It's going to be a grind out there. Maybe trim a couple miles or slow down 30s/mile. Save the suffer-fest for race day.");
+    } else {
+      tips.push("Run's gonna feel harder than it should today. Let the pace drift and focus on time on feet instead.");
+    }
+  } else if (adjustedScore >= 40) {
+    // Poor conditions - clear advice
+    if (workout) {
+      tips.push("This is not the day for speed work. Either bail to the treadmill or just run easy. The workout can wait.");
+    } else if (longRun) {
+      tips.push("Rough conditions for a long run. Cut it by 30%, stay on short loops near home, and bring your phone. Live to run another day.");
+    } else {
+      tips.push("Shorten it up today. Stay close to home and call it early if it gets worse.");
+    }
+  } else {
+    // Dangerous - be direct
+    tips.push("Seriously, hit the treadmill today. If you absolutely have to go outside, tell someone where you're going, carry your phone, and stay on short loops. This isn't worth it.");
+  }
+
+  // Compound conditions - real warnings when it matters (adjusted by boldness)
+  if (heatHumidityDanger && runnerBoldness <= 0) {
+    tips.push("� Heat + humidity is a dangerous combo for heat illness. Run early morning only, take walk breaks every 10 minutes, and pour water on your head and neck. If you stop sweating, you're in trouble—stop immediately.");
+  } else if (heatHumidityDanger && runnerBoldness > 0) {
+    tips.push("� Heat stress is real today. Early morning, walk breaks, aggressive hydration. Know the signs of heat illness.");
+  }
+  
+  if (coldWindDanger && runnerBoldness <= 0) {
+    tips.push("❄️ Wind chill puts you at frostbite risk in under 30 minutes. Cover every inch of skin, wear a windproof shell, and run short loops so you're never far from shelter.");
+  } else if (coldWindDanger && runnerBoldness > 0) {
+    tips.push("❄️ Frostbite risk is real. Cover exposed skin, windproof up, and stay on short loops.");
+  }
+
+  if (isIcyConditions) {
+    if (runnerBoldness <= 1) {
+      tips.push("🧊 Ice or freezing rain means high fall risk. Get traction devices if you're going out, or just hit the treadmill.");
+    } else {
+      tips.push("🧊 Icy out there. Traction devices or treadmill.");
+    }
+  }
+
+  // Long-run specific wisdom (adjusted by boldness)
+  if (longRun) {
+    if (tempChange > 12 && runnerBoldness <= 0) {
+      const isTempWarming = apparentF > (parts.find(p => p.key === 'temperature')?.why.includes('cooler') ? apparentF + tempChange : apparentF - tempChange);
+      tips.push(`🌡️ Temperature's going to ${isTempWarming ? 'climb' : 'drop'} ${Math.round(tempChange)}°F during your run. ${isTempWarming ? 'Start with layers you can peel off and tie around your waist.' : 'Stash an extra layer at the finish or bring it with you.'}`);
+    } else if (tempChange > 15 && runnerBoldness > 0) {
+      const isTempWarming = apparentF > (parts.find(p => p.key === 'temperature')?.why.includes('cooler') ? apparentF + tempChange : apparentF - tempChange);
+      tips.push(`🌡️ Expect a ${Math.round(tempChange)}°F temp ${isTempWarming ? 'rise' : 'drop'}. Layer smart.`);
+    }
+
+    if ((willRain || (precipProb >= 60 && (parts.find(p => p.key === 'precip')?.penalty || 0) > 10)) && runnerBoldness <= 0) {
+      tips.push("🌧️ Rain's coming during your run. Bring a shell and a cap, slap some Body Glide on your feet to prevent blisters, and change your shoes the second you finish.");
+    } else if ((willRain || (precipProb >= 70 && (parts.find(p => p.key === 'precip')?.penalty || 0) > 10)) && runnerBoldness > 0) {
+      tips.push("🌧️ Rain incoming. Shell, cap, done.");
+    }
+
+    if (adjustedScore < 60 && (isVeryHot || isHumid) && runnerBoldness <= 0) {
+      tips.push("💧 You'll need water out there. Carry a bottle or plan stops every 3-4 miles. Drink every 15-20 minutes, not just when you're thirsty.");
+    } else if (adjustedScore < 50 && (isVeryHot || isHumid) && runnerBoldness > 0) {
+      tips.push("💧 Plan water stops or carry fluids.");
+    }
+  }
+
+  // Extreme conditions - get specific (adjusted by boldness)
+  if (tops.includes("temperature")) {
+    if (isExtremeHeat && runnerBoldness <= 0) {
+      tips.push("🔥 Extreme heat warning. Pre-cool with a cold shower, pour water on your head and neck every 10 minutes, and run short loops. If you feel confused or stop sweating, stop running immediately.");
+    } else if (isExtremeHeat && runnerBoldness > 0) {
+      tips.push("🔥 Extreme heat. Pre-cool, frequent water on head/neck, watch for heat illness.");
+    }
+    
+    if (isExtremeCold && runnerBoldness <= 0) {
+      tips.push("🥶 Extreme cold means business. Warm up indoors first, cover all skin including a balaclava for your face, and run short loops near shelter.");
+    } else if (isExtremeCold && runnerBoldness > 0) {
+      tips.push("🥶 Extreme cold. Cover everything, warm up indoors first.");
+    }
+  }
+
+  if (tops.includes("wind") || tops.includes("coldSynergy")) {
+    if (isVeryWindy && isVeryCold && runnerBoldness <= 0) {
+      tips.push("💨 Wind chill is dangerous today. Windproof shell over everything, cover your face and ears, and start into the wind so you finish with it at your back. Check your fingers and face for numbness every 5 minutes.");
+    } else if (isVeryWindy && isVeryCold && runnerBoldness > 0) {
+      tips.push("💨 Wind chill warning. Windproof layers, cover face, start into wind.");
+    } else if (isVeryWindy && runnerBoldness <= 1) {
+      tips.push("💨 Strong winds today. Start into the wind and finish with a tailwind—trust me, you'll thank yourself. This is an effort run, not a pace run.");
+    }
+  }
+
+  if (tops.includes("precip") && precipProb >= 70 && runnerBoldness <= 0) {
+    tips.push("🌧️ Heavy rain expected. Brimmed cap to keep water off your face, good shell, and avoid painted road markings—they're slick as ice when wet.");
+  } else if (tops.includes("precip") && precipProb >= 80 && runnerBoldness > 0) {
+    tips.push("🌧️ Heavy rain. Cap, shell, watch painted surfaces.");
+  }
+
+  // Road condition warnings integration (only for cautious to balanced runners)
+  if (roadConditions?.hasWarnings && runnerBoldness <= 0) {
+    roadConditions.warnings.forEach(warning => {
+      tips.push(`⚠️ ${warning.message}: ${warning.advice}`);
+    });
+  } else if (roadConditions?.severity === 'danger' && runnerBoldness > 0) {
+    // Badass runners only get danger-level road warnings
+    roadConditions.warnings.filter(w => w.level === 'danger').forEach(warning => {
+      tips.push(`⚠️ ${warning.message}`);
+    });
+  }
+
+  // Pace guidance - conversational and practical (adjusted by boldness)
+  let paceAdj;
+  if (adjustedScore >= 85) {
+    paceAdj = workout 
+      ? "Hit your target paces. You've got this." 
+      : "Run your normal pace. Nothing's holding you back today.";
+  } else if (adjustedScore >= 70) {
+    paceAdj = workout 
+      ? "Add 5-15 seconds per mile to your interval paces. Respect the conditions, still get the work done." 
+      : "Slow down 10-20 seconds per mile from your usual easy pace. It'll feel right.";
+  } else if (adjustedScore >= 55) {
+    paceAdj = workout
+      ? "Tack on 15-30 seconds per mile to your workout paces, or just cut the volume by 20%. Quality over ego today." 
+      : "Expect to slow down 25-40 seconds per mile. The effort's what counts, not the numbers.";
+  } else if (adjustedScore >= 40) {
+    paceAdj = workout
+      ? (runnerBoldness >= 1 
+          ? "Add 30-50 seconds per mile or seriously cut the reps. This isn't your day for a breakthrough." 
+          : "Add 30-50 seconds per mile or just convert to an easy run. Better yet, hit the treadmill and actually get the workout done right.")
+      : (runnerBoldness >= 1 
+          ? "Slow down 45-75 seconds per mile. It's survival mode out there." 
+          : "Slow down 45-75 seconds per mile, or just cut the distance by 30%. Don't be a hero.");
+  } else {
+    paceAdj = runnerBoldness >= 1 
+      ? "Conditions are brutal. Manage expectations heavily or move indoors." 
+      : "Seriously, just hop on the treadmill. There's no point suffering through this for a junk run.";
+  }
+
+  return { tips, paceAdj };
 }
 
 // --- Tiny UI for the insights panel ---
 const ProgressBar = ({ pct }) => (
   <div className="h-2 w-full rounded-full bg-gray-100 overflow-hidden">
-    <div className="h-2 rounded-full bg-pink-500" style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
+    <div className="h-2 rounded-full bg-sky-500" style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
   </div>
 );
 
-const ForecastCard = ({ derived, getDisplayedScore, runnerBoldness, className = "" }) => (
+const ForecastCard = ({ derived, className = "" }) => (
   <Card className={className}>
     <CardHeader>
       <CardTitle className="flex items-center justify-between">
@@ -536,11 +737,6 @@ const ForecastCard = ({ derived, getDisplayedScore, runnerBoldness, className = 
         <div className="space-y-2.5">
           {derived.forecast.slice(0, 6).map((slot, idx) => {
             const isNow = idx === 0;
-            // Visual display values (adjusted by runner boldness)
-            const displaySlotScore = typeof slot.score === 'number' ? getDisplayedScore(slot.score, runnerBoldness) : slot.score;
-            const displaySlotLabel = scoreLabel(displaySlotScore);
-            const displaySlotTone = scoreBasedTone(displaySlotScore);
-
             return (
               <motion.button
                 key={slot.time}
@@ -563,7 +759,7 @@ const ForecastCard = ({ derived, getDisplayedScore, runnerBoldness, className = 
                 {/* Accent bar */}
                 <div 
                   className="absolute left-0 top-0 h-full w-1 transition-all duration-300 group-hover:w-1.5"
-                  style={{ background: displaySlotTone.fillColor }}
+                  style={{ background: slot.tone.fillColor }}
                 />
                 
                 {/* Content */}
@@ -578,8 +774,8 @@ const ForecastCard = ({ derived, getDisplayedScore, runnerBoldness, className = 
                       {slot.timeLabel}
                     </div>
                     <div className="mt-0.5 flex items-baseline gap-1.5">
-                      <span className="text-3xl font-bold leading-none" style={displaySlotTone.textStyle}>
-                        {displaySlotScore}
+                      <span className="text-3xl font-bold leading-none" style={slot.tone.textStyle}>
+                        {slot.score}
                       </span>
                       <span className="text-xs font-medium text-slate-400 dark:text-slate-500">/ 100</span>
                     </div>
@@ -592,9 +788,9 @@ const ForecastCard = ({ derived, getDisplayedScore, runnerBoldness, className = 
                   <div className="flex flex-1 flex-col items-start gap-1.5">
                     <span 
                       className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold shadow-sm" 
-                      style={displaySlotTone.badgeStyle}
+                      style={slot.tone.badgeStyle}
                     >
-                      {displaySlotLabel.text}
+                      {slot.label}
                     </span>
                     <div className="flex items-center gap-1.5">
                       <Thermometer className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
@@ -627,12 +823,12 @@ const ForecastCard = ({ derived, getDisplayedScore, runnerBoldness, className = 
                 </div>
 
                 {/* Hover glow effect */}
-                  <div 
-                    className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-                    style={{
-                      background: `radial-gradient(circle at left center, ${displaySlotTone.fillColor}15 0%, transparent 70%)`
-                    }}
-                  />
+                <div 
+                  className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                  style={{
+                    background: `radial-gradient(circle at left center, ${slot.tone.fillColor}15 0%, transparent 70%)`
+                  }}
+                />
               </motion.button>
             );
           })}
@@ -647,7 +843,7 @@ const ForecastCard = ({ derived, getDisplayedScore, runnerBoldness, className = 
   </Card>
 );
 
-const BestRunTimeCard = ({ derived, unit, getDisplayedScore, runnerBoldness, className = "" }) => {
+const BestRunTimeCard = ({ derived, unit, className = "" }) => {
   if (!derived?.bestRunTimes?.today && !derived?.bestRunTimes?.tomorrow) return null;
   
   const { today, tomorrow } = derived.bestRunTimes;
@@ -657,17 +853,15 @@ const BestRunTimeCard = ({ derived, unit, getDisplayedScore, runnerBoldness, cla
     const date = new Date(time);
     const timeStr = isNow ? 'Now' : date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     
-  const displayTemp = unit === "F" ? Math.round(apparentF) : Math.round((apparentF - 32) * 5 / 9);
-  // Visual display values (adjusted by boldness)
-  const displayScore = typeof score === 'number' ? getDisplayedScore(score, runnerBoldness) : score;
-  const label = scoreLabel(displayScore);
-  const tone = scoreBasedTone(displayScore);
+    const displayTemp = unit === "F" ? Math.round(apparentF) : Math.round((apparentF - 32) * 5 / 9);
+    const label = scoreLabel(score);
+    const tone = scoreTone(score, apparentF);
     
-  const highlights = [];
-  if (displayScore >= 80) highlights.push("Excellent conditions");
-  else if (displayScore >= 65) highlights.push("Great conditions");
-  else if (displayScore >= 50) highlights.push("Good conditions");
-  else highlights.push("Best available window");
+    const highlights = [];
+    if (score >= 80) highlights.push("Excellent conditions");
+    else if (score >= 65) highlights.push("Great conditions");
+    else if (score >= 50) highlights.push("Good conditions");
+    else highlights.push("Best available window");
     
     if (precipProb < 20) highlights.push("low precip risk");
     if (wind < 10) highlights.push("calm winds");
@@ -707,8 +901,8 @@ const BestRunTimeCard = ({ derived, unit, getDisplayedScore, runnerBoldness, cla
           </div>
           <div className="flex flex-col items-end gap-1">
             <div className="text-4xl font-bold" style={tone.textStyle}>
-                {displayScore}
-              </div>
+              {score}
+            </div>
             <span className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium" style={tone.badgeStyle}>
               {label.text}
             </span>
@@ -748,6 +942,307 @@ const BestRunTimeCard = ({ derived, unit, getDisplayedScore, runnerBoldness, cla
   );
 };
 
+import { MapPin, Thermometer, Droplets, Wind, CloudRain, Sun, Hand, Info, Flame, Sunrise as SunriseIcon, Sunset as SunsetIcon, Settings as SettingsIcon, Crosshair, Moon, X, TrendingUp, Cloud, CloudFog, UserRound, Calendar, Lightbulb, Activity, Clock, Gauge } from "lucide-react";
+import { RadialBarChart, RadialBar, PolarAngleAxis } from "recharts";
+
+// Gear icon mapping for outfit items
+const GEAR_ICONS = {
+  // Tops
+  singlet: UserRound,
+  tShirt: UserRound,
+  longSleeve: UserRound,
+  jacket: Cloud,
+  
+  // Bottoms
+  shorts: UserRound,
+  tights: UserRound,
+  
+  // Accessories
+  gloves: Hand,
+  hat: UserRound,
+  sunglasses: Sun,
+  
+  // Weather gear
+  windbreaker: Wind,
+  rainJacket: CloudRain,
+  waterproof: CloudRain,
+  
+  // Hydration
+  water: Droplets,
+  hydration: Droplets,
+};
+
+// Comprehensive gear information database
+const GEAR_INFO = {
+  // Tops
+  sports_bra: {
+    name: "Sports Bra",
+    category: "Tops",
+    description: "Essential foundation for female runners providing support and comfort during runs.",
+    whenToWear: "Worn as a base layer in warm weather (70°F+) or under other layers in cooler conditions.",
+    tips: "Choose high-impact for intense workouts, medium for easy runs. Look for moisture-wicking fabrics.",
+    tempRange: "All temperatures as base layer",
+  },
+  tank_top: {
+    name: "Tank Top",
+    category: "Tops",
+    description: "Sleeveless running shirt for maximum ventilation and freedom of movement.",
+    whenToWear: "Hot weather running (75°F+), especially in humid conditions or during hard workouts.",
+    tips: "Great for summer racing. Apply sunscreen to exposed shoulders. Choose technical fabrics over cotton.",
+    tempRange: "75°F and above",
+  },
+  short_sleeve: {
+    name: "Short-Sleeve Tech Tee",
+    category: "Tops",
+    description: "Versatile moisture-wicking shirt suitable for a wide range of temperatures.",
+    whenToWear: "Mild to warm weather (50-75°F). The go-to choice for most spring and fall runs.",
+    tips: "Look for seamless construction to prevent chafing. Bright colors increase visibility.",
+    tempRange: "50-75°F",
+  },
+  long_sleeve: {
+    name: "Long-Sleeve Base",
+    category: "Tops",
+    description: "Technical long-sleeve shirt that provides warmth while wicking moisture away.",
+    whenToWear: "Cool weather (40-55°F) or as a base layer in cold conditions.",
+    tips: "Thumbholes keep sleeves in place. Can be layered under jackets for added warmth.",
+    tempRange: "40-55°F",
+  },
+  vest: {
+    name: "Light Running Vest",
+    category: "Outerwear",
+    description: "Core insulation without restricting arm movement. Wind-resistant front panel.",
+    whenToWear: "Cool mornings (38-50°F) or windy conditions. Perfect for temperature fluctuations.",
+    tips: "Great for runs that start cold but warm up. Easy to remove and carry if needed.",
+    tempRange: "38-50°F",
+  },
+  light_jacket: {
+    name: "Light Jacket",
+    category: "Outerwear",
+    description: "Lightweight wind and water-resistant outer layer for cold weather protection.",
+    whenToWear: "Cold weather (30-45°F) with wind or light precipitation.",
+    tips: "Look for reflective details for visibility. Pit zips help regulate temperature.",
+    tempRange: "30-45°F",
+  },
+  insulated_jacket: {
+    name: "Insulated Jacket",
+    category: "Outerwear",
+    description: "Heavy-duty jacket with thermal insulation for the coldest conditions.",
+    whenToWear: "Very cold weather (below 25°F) or extreme wind chill.",
+    tips: "May feel too warm during hard efforts. Best for easy runs in frigid temps.",
+    tempRange: "Below 25°F",
+  },
+  
+  // Bottoms
+  split_shorts: {
+    name: "Split Shorts",
+    category: "Bottoms",
+    description: "Lightweight racing shorts with side splits for maximum range of motion.",
+    whenToWear: "Warm weather (60°F+), especially for speed workouts and races.",
+    tips: "Built-in liner provides support. Short inseam increases ventilation and stride freedom.",
+    tempRange: "60°F and above",
+  },
+  shorts: {
+    name: "Running Shorts",
+    category: "Bottoms",
+    description: "Standard running shorts offering comfort and breathability.",
+    whenToWear: "Mild to warm weather (50-70°F). Year-round for some experienced runners.",
+    tips: "5-7 inch inseam is most common. Pockets are handy for keys or energy gels.",
+    tempRange: "50-70°F",
+  },
+  tights: {
+    name: "Running Tights",
+    category: "Bottoms",
+    description: "Form-fitting pants that provide muscle support and warmth.",
+    whenToWear: "Cool to cold weather (30-50°F). Essential for winter running.",
+    tips: "Compression tights aid recovery. Fleece-lined versions add extra warmth.",
+    tempRange: "30-50°F",
+  },
+  thermal_tights: {
+    name: "Thermal Tights",
+    category: "Bottoms",
+    description: "Insulated tights with thermal lining for extreme cold protection.",
+    whenToWear: "Very cold weather (below 30°F) or high wind chill.",
+    tips: "Double-layer construction traps heat. May need to size up for layering.",
+    tempRange: "Below 30°F",
+  },
+  
+  // Head & Hands
+  cap: {
+    name: "Running Cap",
+    category: "Headwear",
+    description: "Lightweight cap to shield eyes from sun and keep sweat out of your face.",
+    whenToWear: "Sunny conditions with high UV index (6+). Useful in light rain too.",
+    tips: "Mesh panels increase ventilation. Darker colors underneath bill reduce glare.",
+    tempRange: "All temperatures",
+  },
+  brim_cap: {
+    name: "Brimmed Cap/Visor",
+    category: "Headwear",
+    description: "Wide-brimmed hat or visor providing maximum sun and rain protection.",
+    whenToWear: "Rain (40%+ chance) or intense sun. Long runs in exposed areas.",
+    tips: "Visor keeps head cooler than full cap. Brim keeps rain off glasses.",
+    tempRange: "All temperatures",
+  },
+  headband: {
+    name: "Ear Band",
+    category: "Headwear",
+    description: "Covers ears while allowing heat to escape from the top of your head.",
+    whenToWear: "Cool weather (35-45°F) when ears need protection but a beanie is too warm.",
+    tips: "Perfect middle ground between bare head and beanie. Stays in place better than hats.",
+    tempRange: "35-45°F",
+  },
+  beanie: {
+    name: "Running Beanie",
+    category: "Headwear",
+    description: "Thermal hat that prevents significant heat loss from your head.",
+    whenToWear: "Cold weather (below 35°F). Essential when temperature drops significantly.",
+    tips: "You lose 10% of body heat through your head. Breathable fabric prevents overheating.",
+    tempRange: "Below 35°F",
+  },
+  balaclava: {
+    name: "Balaclava",
+    category: "Headwear",
+    description: "Full head and face coverage protecting cheeks, nose, and neck from extreme cold and wind.",
+    whenToWear: "Very cold weather (below 10°F) or extreme wind chill. Essential for preventing frostbite.",
+    tips: "Look for breathable mesh mouth panel to reduce moisture and fogging. Can layer under beanie for extra warmth at 0°F.",
+    tempRange: "Below 10°F or severe wind chill",
+  },
+  light_gloves: {
+    name: "Light Gloves",
+    category: "Hands",
+    description: "Thin, breathable gloves for mild cold protection.",
+    whenToWear: "Cool mornings (40-50°F) when hands need light coverage.",
+    tips: "Touch-screen compatible fingertips let you use your phone. Easy to pocket if you warm up.",
+    tempRange: "40-50°F",
+  },
+  medium_gloves: {
+    name: "Medium Gloves",
+    category: "Hands",
+    description: "Insulated gloves providing solid cold weather protection.",
+    whenToWear: "Cold weather (25-40°F) or windy conditions.",
+    tips: "Windproof shell on palm side. Moisture-wicking liner keeps hands dry.",
+    tempRange: "25-40°F",
+  },
+  mittens: {
+    name: "Running Mittens",
+    category: "Hands",
+    description: "Maximum hand warmth by keeping fingers together to share heat.",
+    whenToWear: "Very cold weather (below 25°F) or severe wind chill.",
+    tips: "Warmer than gloves but less dexterity. Consider convertible mitten-glove hybrids.",
+    tempRange: "Below 25°F",
+  },
+  mittens_liner: {
+    name: "Glove Liner (under mittens)",
+    category: "Hands",
+    description: "Thin inner glove worn under mittens for extreme cold layering.",
+    whenToWear: "Extreme cold (below 10°F) or frostbite-level wind chill.",
+    tips: "Can be worn alone in milder cold. Adds versatility to your hand protection system.",
+    tempRange: "Below 10°F",
+  },
+  
+  // Accessories
+  arm_sleeves: {
+    name: "Arm Sleeves",
+    category: "Accessories",
+    description: "Removable sleeves for sun protection or adaptable warmth.",
+    whenToWear: "Variable temps on long runs, or sunny days needing UV protection.",
+    tips: "Easy to remove and pocket when you warm up. UPF 50+ blocks harmful rays.",
+    tempRange: "55-70°F",
+  },
+  neck_gaiter: {
+    name: "Neck Gaiter",
+    category: "Accessories",
+    description: "Tube of fabric protecting neck and face from cold air and wind.",
+    whenToWear: "Very cold (below 33°F) or very windy conditions (18+ mph).",
+    tips: "Pull up over nose and mouth in extreme cold. Prevents breathing cold air directly.",
+    tempRange: "Below 33°F",
+  },
+  windbreaker: {
+    name: "Windbreaker",
+    category: "Outerwear",
+    description: "Ultra-light wind-blocking layer that packs down small.",
+    whenToWear: "Windy conditions (15+ mph) in temps 45-60°F.",
+    tips: "Packs into own pocket. Great insurance on long runs. Not waterproof.",
+    tempRange: "45-60°F with wind",
+  },
+  rain_shell: {
+    name: "Packable Rain Shell",
+    category: "Outerwear",
+    description: "Waterproof jacket designed to keep you dry in wet conditions.",
+    whenToWear: "Rain probability 40%+ or during precipitation.",
+    tips: "Breathable fabric prevents overheating. Bright colors increase visibility in storms.",
+    tempRange: "All temperatures in rain",
+  },
+  sunglasses: {
+    name: "Sunglasses",
+    category: "Accessories",
+    description: "UV-protective eyewear reducing glare and eye strain.",
+    whenToWear: "High UV index (7+) or very sunny conditions.",
+    tips: "Polarized lenses reduce road glare. Secure fit prevents bouncing while running.",
+    tempRange: "All temperatures",
+  },
+  sunscreen: {
+    name: "Sunscreen",
+    category: "Accessories",
+    description: "SPF protection preventing sunburn on exposed skin.",
+    whenToWear: "UV index 6+ or any long run over 1 hour in daylight.",
+    tips: "Sport formula resists sweat. Reapply every 80 minutes on long runs. SPF 30+ minimum.",
+    tempRange: "All temperatures",
+  },
+  
+  // Nutrition & Care
+  hydration: {
+    name: "Water/Hydration",
+    category: "Nutrition",
+    description: "Fluid replacement essential for performance and safety.",
+    whenToWear: "Runs over 45 minutes, hot weather (75°F+), or high humidity (75%+).",
+    tips: "Handheld bottle, vest, or belt. Drink before you feel thirsty. Electrolytes for 90+ min runs.",
+    tempRange: "All temperatures",
+  },
+  energy_nutrition: {
+    name: "Energy Gels/Chews",
+    category: "Nutrition",
+    description: "Quick-absorbing carbohydrates to fuel long runs.",
+    whenToWear: "Long runs (90+ minutes) or runs over 50°F when body processes fuel efficiently.",
+    tips: "Take with water. Start fueling at 45-60 minutes. 30-60g carbs per hour.",
+    tempRange: "50°F and above",
+  },
+  anti_chafe: {
+    name: "Anti-Chafe Balm",
+    category: "Care",
+    description: "Lubricant preventing friction and chafing on long runs.",
+    whenToWear: "Runs over 60 minutes, humid conditions (75%+), or anywhere skin rubs.",
+    tips: "Apply to inner thighs, underarms, nipples. Reapply on very long runs (2+ hours).",
+    tempRange: "All temperatures",
+  },
+  
+  // Socks
+  light_socks: {
+    name: "Light Running Socks",
+    category: "Socks",
+    description: "Thin moisture-wicking socks for warm weather comfort.",
+    whenToWear: "Warm, dry conditions (60°F+) or indoor running.",
+    tips: "Moisture-wicking prevents blisters. Seamless toe reduces irritation.",
+    tempRange: "60°F and above",
+  },
+  heavy_socks: {
+    name: "Heavy Running Socks",
+    category: "Socks",
+    description: "Cushioned socks with extra warmth and protection.",
+    whenToWear: "Cold weather (below 40°F) or when extra cushioning is needed.",
+    tips: "Merino wool regulates temperature. Extra padding reduces impact on long runs.",
+    tempRange: "Below 40°F",
+  },
+  double_socks: {
+    name: "Double Socks (layered)",
+    category: "Socks",
+    description: "Two layers of socks for extreme cold or blister prevention.",
+    whenToWear: "Very cold/wet conditions (below 32°F) or high precipitation.",
+    tips: "Thin liner sock under thicker outer sock. Helps manage moisture and adds warmth.",
+    tempRange: "Below 32°F or wet conditions",
+  },
+};
+
 /*
   RunFit Wardrobe — Single-file React (App.jsx)
   CHANGELOG:
@@ -757,6 +1252,160 @@ const BestRunTimeCard = ({ derived, unit, getDisplayedScore, runnerBoldness, cla
   - Outfit algorithm refined for clarity and gender-specific logic.
   - Defaults to °F, Kansas City, MO, and "Female" profile.
 */
+
+// --- Tiny UI primitives (inlined so it's all in one file) ---
+const Card = ({ className = "", children }) => (
+  <div className={`rounded-2xl bg-white/95 backdrop-blur-sm border border-gray-200/60 shadow-lg shadow-gray-200/50 dark:bg-slate-900/80 dark:border-slate-800 dark:shadow-2xl dark:shadow-slate-950/60 ${className}`}>{children}</div>
+);
+const CardHeader = ({ className = "", children }) => (
+  <div className={`border-b border-gray-200/50 dark:border-slate-800 px-5 py-4 ${className}`}>{children}</div>
+);
+const CardTitle = ({ className = "", children }) => (
+  <div className={`text-sm font-semibold tracking-tight text-gray-700 dark:text-slate-100 ${className}`}>{children}</div>
+);
+const CardContent = ({ className = "", children }) => (
+  <div className={`p-4 text-gray-700 dark:text-slate-100 ${className}`}>{children}</div>
+);
+
+const Button = ({ variant = "default", className = "", ...props }) => {
+  const map = {
+    default: "inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold shadow transition-colors bg-sky-600 text-white hover:bg-sky-500 disabled:opacity-50",
+    secondary: "inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium shadow-sm bg-white text-sky-700 ring-1 ring-sky-100 hover:bg-sky-50 disabled:opacity-50 dark:bg-slate-900 dark:text-sky-300 dark:ring-slate-700 dark:hover:bg-slate-800",
+    outline: "inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium shadow-sm border border-gray-200 bg-white text-gray-900 hover:bg-gray-50 disabled:opacity-50 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 dark:hover:bg-slate-800",
+    ghost: "inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:text-slate-200 dark:hover:bg-slate-800",
+  };
+  return <button className={`${map[variant]} ${className}`} {...props} />;
+};
+
+const Input = ({ className = "", ...props }) => (
+  <input className={`w-full rounded-lg border border-gray-300/60 dark:border-slate-700 bg-white/80 dark:bg-slate-900 px-3 py-2 text-sm shadow-sm outline-none transition focus:ring-2 focus:ring-sky-400/50 dark:focus:ring-sky-500 disabled:opacity-50 text-gray-700 dark:text-slate-100 ${className}`} {...props} />
+);
+
+const Label = ({ htmlFor, className = "", children }) => (
+  <label htmlFor={htmlFor} className={`text-sm text-gray-500 dark:text-slate-300 ${className}`}>{children}</label>
+);
+
+const Switch = ({ checked, onCheckedChange, id }) => (
+  <button id={id} role="switch" aria-checked={checked} onClick={() => onCheckedChange(!checked)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${checked ? 'bg-sky-500' : 'bg-gray-200 dark:bg-slate-700'}`}>
+    <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${checked ? 'translate-x-5' : 'translate-x-1'}`} />
+  </button>
+);
+
+const SegmentedControl = ({ options, value, onChange }) => (
+  <div className="flex items-center rounded-lg bg-gray-100 dark:bg-slate-800 p-1">
+    {options.map(opt => (
+      <button key={opt.value} onClick={() => onChange(opt.value)} className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${value === opt.value ? 'bg-white text-sky-700 shadow-sm dark:bg-slate-700 dark:text-sky-300' : 'text-gray-600 hover:bg-gray-200/50 dark:text-slate-300 dark:hover:bg-slate-700/80'}`}>
+        {opt.label}
+      </button>
+    ))}
+  </div>
+);
+
+const FORECAST_ALERT_META = {
+  wind: {
+    Icon: Wind,
+    badgeClass: "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/40 dark:bg-sky-500/20 dark:text-sky-200",
+    iconClass: "text-sky-500 dark:text-sky-300",
+    label: "Wind",
+  },
+  rain: {
+    Icon: CloudRain,
+    badgeClass: "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-500/40 dark:bg-indigo-500/20 dark:text-indigo-200",
+    iconClass: "text-indigo-500 dark:text-indigo-300",
+    label: "Precip",
+  },
+  uv: {
+    Icon: Sun,
+    badgeClass: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/20 dark:text-amber-200",
+    iconClass: "text-amber-500 dark:text-amber-300",
+    label: "UV",
+  },
+};
+
+// --- Utility helpers ---
+const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+const round1 = (v) => Math.round(v * 10) / 10;
+const msToMph = (ms) => ms * 2.2369362921;
+const mmToInches = (mm) => mm * 0.0393701;
+const cToF = (c) => (c * 9) / 5 + 32;
+const fToC = (f) => ((f - 32) * 5) / 9;
+
+function computeFeelsLike(tempC, windMs, humidityPct) {
+  const tempF = cToF(tempC);
+  const windMph = msToMph(windMs);
+  let feelsF = tempF;
+
+  if (tempF <= 50 && windMph > 3) {
+    const v16 = Math.pow(windMph, 0.16);
+    feelsF = 35.74 + 0.6215 * tempF - 35.75 * v16 + 0.4275 * tempF * v16;
+  } else if (tempF >= 80 && humidityPct >= 40) {
+    const R = humidityPct;
+    const T = tempF;
+    const hi =
+      -42.379 +
+      2.04901523 * T +
+      10.14333127 * R -
+      0.22475541 * T * R -
+      6.83783e-3 * T * T -
+      5.481717e-2 * R * R +
+      1.22874e-3 * T * T * R +
+      8.5282e-4 * T * R * R -
+      1.99e-6 * T * T * R * R;
+    feelsF = Math.max(T, hi);
+  }
+
+  return { f: feelsF, c: fToC(feelsF) };
+}
+
+function blendWeather(primary, secondary) {
+  const { provider: _pp, ...p } = primary;
+  const { provider: _ps, ...s } = secondary || {};
+  const avg = (a, b) => {
+    if (typeof a === "number" && typeof b === "number") return (a + b) / 2;
+    if (typeof a === "number") return a;
+    if (typeof b === "number") return b;
+    return undefined;
+  };
+
+  return {
+    ...p,
+    temperature: avg(p.temperature, s?.temperature),
+    apparent: avg(p.apparent, s?.apparent),
+    wind: avg(p.wind, s?.wind),
+    humidity: avg(p.humidity, s?.humidity),
+    precip: avg(p.precip, s?.precip),
+    precipProb: avg(p.precipProb, s?.precipProb),
+    uv: avg(p.uv, s?.uv),
+    cloud: avg(p.cloud, s?.cloud),
+  };
+}
+
+// Default to Kansas City, MO (F)
+const APP_VERSION = "1.2.1"; // Increment to force cache clear
+const DEFAULT_PLACE = { name: "Kansas City, MO", lat: 39.0997, lon: -94.5786, source: 'default' };
+
+const nominatimHeaders = () => ({
+  "User-Agent": `SamsFitCast/1.0 (${window.location.href})`,
+  "Accept-Language": "en",
+});
+
+// Map Open-Meteo hourly array to current hour index
+function getCurrentHourIndex(times) {
+  if (!Array.isArray(times) || times.length === 0) return 0;
+  const now = Date.now();
+  let previousIdx = 0;
+
+  for (let i = 0; i < times.length; i += 1) {
+    const parsed = Date.parse(times[i]);
+    if (!Number.isFinite(parsed)) continue;
+    if (parsed > now) {
+      return i === 0 ? 0 : previousIdx;
+    }
+    previousIdx = i;
+  }
+
+  return previousIdx;
+}
 
 async function fetchMetNoWeather(p, unit) {
   const url = `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${p.lat}&lon=${p.lon}`;
@@ -974,7 +1623,7 @@ function outfitFor({ apparentF, humidity, windMph, precipProb, precipIn, uvIndex
   let tempChange = 0;
   let maxPrecipProb = precipProb;
   let maxUV = uvIndex;
-  let willRain = precipProb > 50 || precipIn > 0.05;
+  let willRain = precipProb > 40 || precipIn > 0.02;
   
   if (longRun && hourlyForecast.length > 1) {
     // Look ahead 2 hours (indices 1 and 2)
@@ -985,7 +1634,7 @@ function outfitFor({ apparentF, humidity, windMph, precipProb, precipIn, uvIndex
         tempChange = Math.max(tempChange, futureTemp - T);
       }
       if (future.precipProb != null) maxPrecipProb = Math.max(maxPrecipProb, future.precipProb);
-      if (future.precip != null && future.precip > 0.05) willRain = true;
+      if (future.precip != null && future.precip > 0.02) willRain = true;
       if (future.uv != null) maxUV = Math.max(maxUV, future.uv);
     }
   }
@@ -1009,67 +1658,60 @@ function outfitFor({ apparentF, humidity, windMph, precipProb, precipIn, uvIndex
 
   // --- 2. Weather Condition Modifiers ---
   // Rain protection: prioritize brim cap over regular cap for rain
-  if (precipProb > 50 || precipIn > 0.05 || (longRun && willRain)) { 
+  if (precipProb > 40 || precipIn > 0.02 || (longRun && willRain)) { 
     gear.add("rain_shell").add("brim_cap"); 
   }
   
-  // --- Enhanced Wind Logic: Research-backed windbreaker recommendations ---
-  // Based on ambient temperature and wind speed analysis
+  // --- Enhanced Wind Logic: Research-backed windbreaker "sweet spots" ---
+  // Based on feels-like temp (apparent temp already accounts for wind chill)
+  // Sources: REI, Runner's World, NWS wind chill guidance
   // 
-  // Key findings:
-  // - 60°F+: NEVER recommend windbreaker (too warm)
-  // - 55-59°F: Optional/situational across all wind speeds
-  // - 50°F: Recommended with base layer at 10+ mph
-  // - 45°F and below: Recommended with base layer across all conditions
-  // - 35°F and below: Essential + midlayer needed
+  // Sweet spots by run type (feels-like °F):
+  // - Easy runs: 40-55°F → breathable windbreaker ideal
+  // - Hard/tempo/intervals: 35-50°F → more heat generation, lighter needed
+  // - Long runs: 38-58°F → longer exposure, prioritize windblock + breathability
+  //
+  // Wind tiers:
+  // - Breezy (5-12 mph): noticeable cooling, helpful in mid-40s to low-50s
+  // - Windy (13-20 mph): strong cooling, shift ranges 5-10°F warmer
   
-  const ambientTemp = apparentF; // Use apparent temp as proxy for ambient
+  const feelsLike = effectiveT; // Already accounts for wind chill and heat
+  const isBreezy = windMph >= 5 && windMph < 13;
+  const isWindy = windMph >= 13;
   
-  // NEVER recommend windbreaker above 59°F
-  if (ambientTemp >= 60) {
-    // Skip windbreaker entirely - too warm
+  // Determine windbreaker sweet spot based on run type
+  let windBreakerMin, windBreakerMax;
+  if (workout) {
+    // Hard efforts generate more heat: 35-50°F range
+    windBreakerMin = 35;
+    windBreakerMax = 50;
+  } else if (longRun) {
+    // Long runs need longer exposure protection: 38-58°F range
+    windBreakerMin = 38;
+    windBreakerMax = 58;
   } else {
-    const needsWindbreaker = (() => {
-      // 55-59°F: Optional/situational - only add if very windy and long run
-      if (ambientTemp >= 55) {
-        return longRun && windMph >= 20;
-      }
-      
-      // 50-54°F: Recommended at 10+ mph (needs base layer)
-      if (ambientTemp >= 50) {
-        return windMph >= 10 && !gear.has("rain_shell");
-      }
-      
-      // 40-49°F: Recommended with base layer
-      if (ambientTemp >= 40) {
-        return !gear.has("rain_shell") && !gear.has("light_jacket");
-      }
-      
-      // 35-39°F: Essential + midlayer
-      if (ambientTemp >= 35) {
-        // At this temp, ensure we have midlayer (long sleeve)
-        if (!gear.has("long_sleeve") && !gear.has("light_jacket")) {
-          gear.add("long_sleeve");
-        }
-        return !gear.has("rain_shell") && !gear.has("light_jacket");
-      }
-      
-      // Below 35°F: Essential + midlayer (but jacket may be better choice)
-      if (ambientTemp < 35) {
-        // Prefer light jacket over windbreaker in very cold conditions
-        return false; // Let jacket logic handle this
-      }
-      
-      return false;
-    })();
-    
-    if (needsWindbreaker) {
-      gear.add("windbreaker");
-    }
+    // Easy runs: 40-55°F range
+    windBreakerMin = 40;
+    windBreakerMax = 55;
+  }
+  
+  // Adjust ranges for wind intensity
+  if (isWindy) {
+    // Strong winds (13-20+ mph): shift range 5-10°F warmer
+    windBreakerMax += 7;
+    windBreakerMin += 5;
+  } else if (isBreezy) {
+    // Breezy (5-12 mph): slight shift
+    windBreakerMax += 3;
+  }
+  
+  // Add windbreaker if in sweet spot and no rain shell (rain shell provides wind protection)
+  if (feelsLike >= windBreakerMin && feelsLike <= windBreakerMax && !gear.has("rain_shell")) {
+    gear.add("windbreaker");
   }
   
   // Below windbreaker range in windy/cold conditions: add vest for core wind protection
-  if (windMph >= 15 && ambientTemp < 35 && !gear.has("windbreaker") && !gear.has("rain_shell") && !gear.has("light_jacket")) {
+  if (isWindy && feelsLike < windBreakerMin && !gear.has("windbreaker") && !gear.has("rain_shell")) {
     gear.add("vest"); // Wind vest for very cold + windy
   }
   // Sun protection: only add cap if we don't already have brim_cap (brim provides better sun protection)
@@ -1077,84 +1719,10 @@ function outfitFor({ apparentF, humidity, windMph, precipProb, precipIn, uvIndex
     if (!gear.has("brim_cap")) {
       gear.add("cap");
     }
-    gear.add("sunglasses").add("sunscreen");
+    gear.add("sunglasses").add("sunscreen"); 
+    if (longRun && T > 55) gear.add("arm_sleeves"); // Sun protection for long exposed runs
   }
   if (humidity >= 75 && T >= 65) { gear.add("anti_chafe").add("hydration"); }
-  
-  // --- Enhanced Arm Sleeves Logic: Research-backed recommendations ---
-  // Based on temperature, UV index, humidity, and wind conditions
-  // Sources: NWS wind-chill guidance, CDC UV protection, running physiology research
-  
-  const feelsLike = effectiveT;
-  const isLowHumidity = humidity < 50; // Dry air enhances evaporative cooling
-  const isHighHumidity = humidity >= 75; // High humidity reduces sweat evaporation
-  
-  let needsArmSleeves = false;
-  let armSleevesOptional = false;
-  
-  // Temperature-based logic (thermal protection)
-  if (feelsLike < 45) {
-    // Cold: thermal or brushed knit sleeves to cut convective heat loss
-    needsArmSleeves = true;
-  } else if (feelsLike >= 45 && feelsLike <= 60) {
-    // Moderate: lightweight sleeves for comfort, warm-up, early miles
-    armSleevesOptional = true;
-  }
-  // Above 60°F: skip for heat unless UV dictates otherwise (handled below)
-  
-  // UV Index-based logic (sun protection) - overrides temperature in some cases
-  if (uvIndex >= 8) {
-    // Very high to extreme UV: UPF 50+ sleeves strongly recommended
-    needsArmSleeves = true;
-  } else if (uvIndex >= 3 && uvIndex < 8) {
-    // Moderate to high UV: UPF 30-50+ sleeves recommended
-    if (feelsLike <= 60 || (longRun && maxUV >= 6)) {
-      // Add if temp allows or on long runs with sustained UV exposure
-      needsArmSleeves = true;
-    } else if (feelsLike > 60) {
-      // Hot weather: only if UV justifies it
-      armSleevesOptional = true;
-    }
-  }
-  // UV 0-2 (low): optional, minimal UV risk
-  
-  // Environmental modifiers
-  if (feelsLike > 60 && isLowHumidity && uvIndex >= 3) {
-    // Full sun + dry air: thin UPF sleeves for evaporative cooling
-    needsArmSleeves = true;
-    armSleevesOptional = false; // Override optional status
-  }
-  
-  if (feelsLike > 60 && isHighHumidity && uvIndex < 8) {
-    // Hot + humid: avoid unless UV is very high (reduces sweat evaporation, feels clammy)
-    needsArmSleeves = false;
-    armSleevesOptional = uvIndex >= 3; // Only optional if moderate UV
-  }
-  
-  // Windy & cool: wind accelerates heat loss from bare skin
-  if (feelsLike < 60 && windMph >= 15) {
-    needsArmSleeves = true;
-    armSleevesOptional = false;
-  }
-  
-  // Long run specific: temperature swings or extended UV exposure
-  if (longRun) {
-    if (tempChange > 8) {
-      // Versatile for temp swings - can remove mid-run
-      armSleevesOptional = true;
-    }
-    if (maxUV >= 6 && feelsLike <= 65) {
-      // Extended UV exposure on long runs
-      needsArmSleeves = true;
-    }
-  }
-  
-  // Add arm sleeves with optional marker if applicable
-  if (needsArmSleeves) {
-    gear.add("arm_sleeves");
-  } else if (armSleevesOptional) {
-    gear.add("arm_sleeves_optional");
-  }
   
   // --- Enhanced Cold Weather Headgear Logic ---
   // Adjust headgear based on wind chill and run type
@@ -1217,8 +1785,9 @@ function outfitFor({ apparentF, humidity, windMph, precipProb, precipIn, uvIndex
     gear.add("hydration"); // Always bring water on long runs
     gear.add("anti_chafe"); // Extended friction = always use
     if (T > 50) gear.add("energy_nutrition"); // Fuel for longer efforts
+    if (tempChange > 8) gear.add("arm_sleeves"); // Versatile for temp swings
     // Only suggest rain shell if there's a reasonable chance of rain (>30%) and we don't already have it
-    if (maxPrecipProb > 50 && !gear.has("rain_shell")) {
+    if (maxPrecipProb > 40 && !gear.has("rain_shell")) {
       gear.add("rain_shell");
     }
   }
@@ -1244,8 +1813,8 @@ function outfitFor({ apparentF, humidity, windMph, precipProb, precipIn, uvIndex
     windMittens: WIND_MITTENS_THRESHOLD,
   };
   
-  // Additional adjustment for cold hands: if user has cold hands, make them feel 3°F colder for glove decisions
-  const gloveAdjT = coldHands ? adjT - 3 : adjT;
+  // Additional adjustment for cold hands: if user has cold hands, make them feel 5°F colder for glove decisions
+  const gloveAdjT = coldHands ? adjT - 5 : adjT;
   
   // Determine required hand protection level based on adjusted temp (accounts for workout warmth + temp sensitivity)
   // Hard rule: never wear gloves when adjusted temp is 60°F or above (unless cold hands makes it feel colder)
@@ -1293,14 +1862,14 @@ function outfitFor({ apparentF, humidity, windMph, precipProb, precipIn, uvIndex
   // --- 4. Define Gear Labels & Display Order ---
   const labels = {
     thermal_tights: "Thermal tights", long_sleeve: "Long-sleeve base", insulated_jacket: "Insulated jacket", neck_gaiter: "Neck gaiter", mittens: "Mittens", mittens_liner: "Glove liner (under mittens)",
-    tights: "Running tights", vest: "Short-sleeve tech tee", light_jacket: "Light jacket", light_gloves: "Light gloves", medium_gloves: "Medium gloves", headband: "Ear band",
+    tights: "Running tights", vest: "Light running vest", light_jacket: "Light jacket", light_gloves: "Light gloves", medium_gloves: "Medium gloves", headband: "Ear band",
     shorts: "Shorts", split_shorts: "Split shorts", short_sleeve: "Short-sleeve tech tee", tank_top: "Tank top", sports_bra: "Sports bra",
-    cap: "Cap", brim_cap: "Cap for rain", rain_shell: "Packable rain shell", windbreaker: "Windbreaker", sunglasses: "Sunglasses", sunscreen: "Sunscreen",
+    cap: "Cap", brim_cap: "Brimmed cap/visor", rain_shell: "Packable rain shell", windbreaker: "Windbreaker", sunglasses: "Sunglasses", sunscreen: "Sunscreen",
     hydration: "Bring water", anti_chafe: "Anti-chafe balm", light_socks: "Light socks", heavy_socks: "Heavy socks", double_socks: "Double socks (layered)", beanie: "Beanie", balaclava: "Balaclava",
-    arm_sleeves: "Arm sleeves", arm_sleeves_optional: "Arm sleeves (Optional)", energy_nutrition: "Energy gels/chews",
+    arm_sleeves: "Arm sleeves", energy_nutrition: "Energy gels/chews",
   };
-  const perfOrder = ["sports_bra", "tank_top", "short_sleeve", "long_sleeve", "vest", "light_jacket", "insulated_jacket", "split_shorts", "shorts", "tights", "thermal_tights", "cap", "brim_cap", "headband", "beanie", "arm_sleeves", "arm_sleeves_optional", "light_gloves", "medium_gloves", "mittens", "mittens_liner", "windbreaker", "rain_shell", "sunglasses", "sunscreen", "hydration", "energy_nutrition", "anti_chafe", "light_socks", "heavy_socks", "double_socks", "neck_gaiter"];
-  const comfortOrder = ["sports_bra", "short_sleeve", "long_sleeve", "tank_top", "light_jacket", "insulated_jacket", "vest", "tights", "thermal_tights", "shorts", "split_shorts", "beanie", "headband", "cap", "brim_cap", "arm_sleeves", "arm_sleeves_optional", "mittens", "mittens_liner", "medium_gloves", "light_gloves", "heavy_socks", "light_socks", "double_socks", "neck_gaiter", "windbreaker", "rain_shell", "sunglasses", "sunscreen", "hydration", "energy_nutrition", "anti_chafe"];
+  const perfOrder = ["sports_bra", "tank_top", "short_sleeve", "long_sleeve", "vest", "light_jacket", "insulated_jacket", "split_shorts", "shorts", "tights", "thermal_tights", "cap", "brim_cap", "headband", "beanie", "arm_sleeves", "light_gloves", "medium_gloves", "mittens", "mittens_liner", "windbreaker", "rain_shell", "sunglasses", "sunscreen", "hydration", "energy_nutrition", "anti_chafe", "light_socks", "heavy_socks", "double_socks", "neck_gaiter"];
+  const comfortOrder = ["sports_bra", "short_sleeve", "long_sleeve", "tank_top", "light_jacket", "insulated_jacket", "vest", "tights", "thermal_tights", "shorts", "split_shorts", "beanie", "headband", "cap", "brim_cap", "arm_sleeves", "mittens", "mittens_liner", "medium_gloves", "light_gloves", "heavy_socks", "light_socks", "double_socks", "neck_gaiter", "windbreaker", "rain_shell", "sunglasses", "sunscreen", "hydration", "energy_nutrition", "anti_chafe"];
 
   // --- 5. Generate Performance vs. Comfort Options ---
   const perf = new Set(gear);
@@ -1329,8 +1898,6 @@ function outfitFor({ apparentF, humidity, windMph, precipProb, precipIn, uvIndex
   // Performance tweaks (bias: lighter, less restrictive)
   if (perf.has('insulated_jacket') && (workout || effectiveT > 15)) { perf.delete('insulated_jacket'); perf.add('light_jacket'); }
   if (perf.has('vest') && perf.has('light_jacket')) perf.delete('vest');
-  // Prevent both light_jacket and insulated_jacket at the same time
-  if (perf.has('light_jacket') && perf.has('insulated_jacket')) perf.delete('light_jacket');
   if (perf.has('mittens_liner')) {
     perf.delete('mittens_liner');
     perfTags.delete('mittens_liner');
@@ -1380,8 +1947,6 @@ function outfitFor({ apparentF, humidity, windMph, precipProb, precipIn, uvIndex
   if (effectiveT <= 35 && !cozy.has('light_jacket')) cozy.add('light_jacket');
   if (effectiveT <= 42 && !cozy.has('vest')) cozy.add('vest');
   if (cozy.has('light_jacket') && (windMph >= 10 || effectiveT < 45)) cozy.add('vest');
-  // Prevent both light_jacket and insulated_jacket at the same time
-  if (cozy.has('light_jacket') && cozy.has('insulated_jacket')) cozy.delete('light_jacket');
   if (cozy.has('light_gloves') && effectiveT < 40) {
     cozy.delete('light_gloves');
     cozyTags.delete('light_gloves');
@@ -1430,6 +1995,27 @@ function outfitFor({ apparentF, humidity, windMph, precipProb, precipIn, uvIndex
   return { optionA, optionB, handsLevel: handsLevelFromGear(Array.from(cozy)), sockLevel };
 }
 
+// Default settings
+const DEFAULT_SETTINGS = {
+  place: DEFAULT_PLACE,
+  query: "Kansas City, MO",
+  unit: "F",
+  coldHands: false,
+  gender: "Female",
+  customTempEnabled: false,
+  customTempInput: "",
+  activeOption: "A",
+  theme: "dark",
+  twilightTerms: "dawn-dusk",
+  tempSensitivity: 0,
+  runnerBoldness: 0,
+  runHoursStart: 4,
+  runHoursEnd: 20,
+  showTomorrowOutfit: true,
+  tomorrowRunHour: 6,
+  tomorrowRunType: "easy"
+};
+
 // Load settings from localStorage
 function loadSettings() {
   try {
@@ -1462,7 +2048,6 @@ function loadSettings() {
             showTomorrowOutfit: DEFAULT_SETTINGS.showTomorrowOutfit,
             tomorrowRunHour: DEFAULT_SETTINGS.tomorrowRunHour,
             tomorrowRunType: DEFAULT_SETTINGS.tomorrowRunType,
-            smartNightCard: DEFAULT_SETTINGS.smartNightCard,
           };
           // Immediately save the merged result
           localStorage.setItem('runGearSettings', JSON.stringify(merged));
@@ -1509,7 +2094,6 @@ export default function App() {
   const [customTempInput, setCustomTempInput] = useState(initialSettings.customTempInput);
   const [activeOption, setActiveOption] = useState(initialSettings.activeOption);
   const [showSettings, setShowSettings] = useState(false);
-  const [selectedOutfitItem, setSelectedOutfitItem] = useState(null);
   const [showInsights, setShowInsights] = useState(false);
   const [showHourBreakdown, setShowHourBreakdown] = useState(false);
   const [selectedHourData, setSelectedHourData] = useState(null);
@@ -1526,91 +2110,30 @@ export default function App() {
   const [showTomorrowOutfit, setShowTomorrowOutfit] = useState(initialSettings.showTomorrowOutfit);
   const [tomorrowRunHour, setTomorrowRunHour] = useState(initialSettings.tomorrowRunHour);
   const [tomorrowRunType, setTomorrowRunType] = useState(initialSettings.tomorrowRunType);
-  const [smartNightCard, setSmartNightCard] = useState(initialSettings.smartNightCard ?? true);
   const [tomorrowCardRunType, setTomorrowCardRunType] = useState(initialSettings.tomorrowRunType);
   const [tomorrowCardOption, setTomorrowCardOption] = useState('A'); // 'A' = Performance, 'B' = Comfort
   const [lastUpdated, setLastUpdated] = useState(null);
   const [debugActive, setDebugActive] = useState(false);
   const [debugInputs, setDebugInputs] = useState({
-    apparent: undefined,
-    temp: undefined,
-    wind: undefined,
-    humidity: undefined,
-    precipProb: undefined,
-    precipIn: undefined,
-    uvIndex: undefined,
-    cloudCover: undefined,
-    pressure: undefined,
-    solarRadiation: undefined,
+    apparent: "",
+    temp: "",
+    wind: "",
+    humidity: "",
+    precipProb: "",
+    precipIn: "",
+    uvIndex: "",
+    cloudCover: "",
     isDay: true,
-    debugTimeHour: undefined,
+    debugTimeHour: "",
   });
   const [showRefreshToast, setShowRefreshToast] = useState(false);
 
-  // Calculate displayed score based on runner boldness (only affects display, not gear recommendations)
-  const getDisplayedScore = useCallback((actualScore, boldness) => {
-    if (boldness === 0 || !actualScore) return actualScore;
-    
-    // Boldness adjusts how the score FEELS to the runner using percentage scaling
-    // -2 (cautious): Score × 0.50 (perceives as 50% worse, e.g., 50 → 25, 100 → 50)
-    // -1 (careful): Score × 0.75 (25% worse, e.g., 50 → 38, 100 → 75)
-    //  0 (standard): Score × 1.0 (unchanged)
-    // +1 (bold): Score × 1.25 (25% better, e.g., 50 → 63, 80 → 100)
-    // +2 (badass): Score × 1.50 (50% better, e.g., 50 → 75, 67 → 100)
-    
-    const multiplier = 1 + (boldness * 0.10); // DONT NOT CHANGE THIS LINE, IT IS CORRECT
-    let displayScore = actualScore * multiplier;
-    
-    // Keep displayed score in full bounds (1-100)
-
-    displayScore = Math.max(1, Math.min(100, displayScore));
-    
-    return Math.round(displayScore);
-  }, []);
-
   // Tap-to-refresh handler
   const handleLocationRefresh = async () => {
-    if (loading) return;
-    
-    setLoading(true);
-    setError("");
-    
-    try {
-      // Check if geolocation is available
-      if (!("geolocation" in navigator) || !window.isSecureContext) {
-        // Fallback: just refresh current place
-        await fetchWeather(place, unit);
-        setShowRefreshToast(true);
-        setTimeout(() => setShowRefreshToast(false), 2000);
-        setLoading(false);
-        return;
-      }
-
-      // Get current position
-      const pos = await new Promise((resolve, reject) => 
-        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 })
-      );
-      const { latitude, longitude } = pos.coords;
-      
-      // Set temporary location and fetch weather immediately
-      const p = { name: "Current location", lat: latitude, lon: longitude, source: 'gps' };
-      setPlace(p); 
-      setQuery("Current location");
-      fetchWeather(p, unit); // Don't await, let it run
-      
-      // Get better name in background
-      reverseGeocode(latitude, longitude);
-      
-      setShowRefreshToast(true);
-      setTimeout(() => setShowRefreshToast(false), 2000);
-    } catch (err) {
-      console.error("Geolocation error:", err);
-      // Fallback: just refresh current place
+    if (!loading) {
       await fetchWeather(place, unit);
       setShowRefreshToast(true);
       setTimeout(() => setShowRefreshToast(false), 2000);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -1633,11 +2156,10 @@ export default function App() {
       runHoursEnd,
       showTomorrowOutfit,
       tomorrowRunHour,
-      tomorrowRunType,
-      smartNightCard
+      tomorrowRunType
     };
     saveSettings(settings);
-  }, [place, query, unit, coldHands, gender, customTempEnabled, customTempInput, activeOption, theme, twilightTerms, tempSensitivity, runnerBoldness, runHoursStart, runHoursEnd, showTomorrowOutfit, tomorrowRunHour, tomorrowRunType, smartNightCard]);
+  }, [place, query, unit, coldHands, gender, customTempEnabled, customTempInput, activeOption, theme, twilightTerms, tempSensitivity, runnerBoldness, runHoursStart, runHoursEnd, showTomorrowOutfit, tomorrowRunHour, tomorrowRunType]);
 
   useEffect(() => {
     if (showDebug) {
@@ -1648,6 +2170,7 @@ export default function App() {
         humidity: wx?.humidity != null ? String(wx.humidity) : "",
         precipProb: wx?.precipProb != null ? String(wx.precipProb) : "",
         precipIn: wx?.precip != null ? String(wx.precip) : "",
+        debugTimeHour: "",
         debugTimeHour: "",
         uvIndex: wx?.uv != null ? String(wx.uv) : "",
         cloudCover: wx?.cloud != null ? String(wx.cloud) : "",
@@ -1676,7 +2199,6 @@ export default function App() {
     setShowTomorrowOutfit(DEFAULT_SETTINGS.showTomorrowOutfit);
     setTomorrowRunHour(DEFAULT_SETTINGS.tomorrowRunHour);
     setTomorrowRunType(DEFAULT_SETTINGS.tomorrowRunType);
-    setSmartNightCard(DEFAULT_SETTINGS.smartNightCard);
     setDebugActive(false);
   };
 
@@ -1695,8 +2217,6 @@ export default function App() {
     const precip = Math.max(0, parse(debugInputs.precipIn, base.precip ?? 0));
     const uv = Math.max(0, parse(debugInputs.uvIndex, base.uv ?? 0));
     const cloud = clamp(parse(debugInputs.cloudCover, base.cloud ?? 0), 0, 100);
-    const pressure = parse(debugInputs.pressure, base.pressure ?? 1013);
-    const solarRadiation = Math.max(0, parse(debugInputs.solarRadiation, base.solarRadiation ?? (isDay ? 200 : 0)));
     const isDay = Boolean(debugInputs.isDay);
 
     const nextWx = {
@@ -1709,15 +2229,13 @@ export default function App() {
       precip,
       uv,
       cloud,
-      pressure,
-      solarRadiation,
       isDay,
       sources: {
         ...(base.sources || {}),
         debug: {
           label: "Debug scenario",
           appliedAt: new Date().toISOString(),
-          values: { temperature, apparent, wind, humidity, precipProb, precip, uv, cloud, pressure, solarRadiation, isDay },
+          values: { temperature, apparent, wind, humidity, precipProb, precip, uv, cloud, isDay },
         },
       },
       debugOverride: true,
@@ -1736,8 +2254,6 @@ export default function App() {
               precip,
               uv,
               cloud,
-              pressure,
-              solarRadiation,
             }
           : hour
       );
@@ -1799,7 +2315,7 @@ export default function App() {
     setLoading(true); setError("");
     try {
   const tempUnit = u === "F" ? "fahrenheit" : "celsius";
-  const primaryUrl = `https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lon}&current_weather=true&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,precipitation,cloud_cover,uv_index,wind_speed_10m,surface_pressure,shortwave_radiation&daily=sunrise,sunset&temperature_unit=${tempUnit}&windspeed_unit=mph&precipitation_unit=inch&timezone=auto&forecast_days=3`;
+  const primaryUrl = `https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lon}&current_weather=true&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,precipitation,cloud_cover,uv_index,wind_speed_10m&daily=sunrise,sunset&temperature_unit=${tempUnit}&windspeed_unit=mph&precipitation_unit=inch&timezone=auto&forecast_days=3`;
 
       const [primaryResult, secondaryResult] = await Promise.allSettled([
         fetch(primaryUrl).then((res) => {
@@ -1813,34 +2329,10 @@ export default function App() {
 
       const data = primaryResult.value;
       const idx = getCurrentHourIndex(data?.hourly?.time || []);
-      const currentTime = data?.hourly?.time?.[idx];
       const temp = data?.current_weather?.temperature;
       const wind = data?.current_weather?.windspeed;
       const apparent = data?.hourly?.apparent_temperature?.[idx] ?? temp;
       const timezone = typeof data?.timezone === "string" ? data.timezone : undefined;
-      
-      // Debug: Check current hour index and solar radiation
-      const solarAtIdx = data?.hourly?.shortwave_radiation?.[idx];
-      const next12Solar = Array.from({length: 12}, (_, i) => 
-        data?.hourly?.shortwave_radiation?.[idx + i]
-      );
-      
-      console.log('========================================');
-      console.log('⏰ SOLAR RADIATION DIAGNOSIS');
-      console.log('========================================');
-      console.log('Current Array Index:', idx);
-      console.log('Current Time (from array):', currentTime);
-      console.log('Your Local Time:', new Date().toISOString());
-      console.log('Is Daytime (API says):', data?.current_weather?.is_day === 1);
-      console.log('----------------------------------------');
-      console.log('Solar at Current Index [' + idx + ']:', solarAtIdx, 'W/m²');
-      console.log('----------------------------------------');
-      console.log('Next 12 Hours Solar Radiation:');
-      next12Solar.forEach((solar, i) => {
-        const hour = data?.hourly?.time?.[idx + i];
-        console.log('  [' + (idx + i) + '] ' + hour + ' → ' + (solar || 0).toFixed(1) + ' W/m²');
-      });
-      console.log('========================================');
 
       const fallbackSunrise = Array.isArray(data?.daily?.sunrise) ? data.daily.sunrise.filter(Boolean) : [];
       const fallbackSunset = Array.isArray(data?.daily?.sunset) ? data.daily.sunset.filter(Boolean) : [];
@@ -1876,9 +2368,6 @@ export default function App() {
           precipProb: data?.hourly?.precipitation_probability?.[hIdx],
           precip: data?.hourly?.precipitation?.[hIdx],
           uv: data?.hourly?.uv_index?.[hIdx],
-          cloud: data?.hourly?.cloud_cover?.[hIdx],
-          pressure: data?.hourly?.surface_pressure?.[hIdx],
-          solarRadiation: data?.hourly?.shortwave_radiation?.[hIdx],
         });
       }
 
@@ -1892,8 +2381,6 @@ export default function App() {
         precip: data?.hourly?.precipitation?.[idx] ?? 0,
         cloud: data?.hourly?.cloud_cover?.[idx] ?? 0,
         uv: data?.hourly?.uv_index?.[idx] ?? 0,
-        pressure: data?.hourly?.surface_pressure?.[idx] ?? 1013.25,
-        solarRadiation: data?.hourly?.shortwave_radiation?.[idx] ?? 0,
         isDay: data?.current_weather?.is_day === 1,
         sunriseTimes,
         sunsetTimes,
@@ -2099,74 +2586,21 @@ export default function App() {
   }
 
   // NEW: compute detailed score + breakdown
-  // For long runs, blend current + next 2-3 hours to account for changing conditions
-  let scoreWeatherData = {
-    tempF: tempFWx,
-    apparentF: usedApparentF,
-    humidity: wx.humidity,
-    windMph: wx.wind,
-    precipProb: wx.precipProb,
-    precipIn: wx.precip,
-    uvIndex: wx.uv,
-    cloudCover: wx.cloud || 50,
-    pressure: wx.pressure,
-    solarRadiation: wx.solarRadiation,
-  };
-  
-  if (longRun && wx.hourlyForecast && wx.hourlyForecast.length >= 3) {
-    // For long runs (90-120+ min), analyze next 2-3 hours
-    const futureHours = wx.hourlyForecast.slice(1, 4); // Next 3 hours
-    
-    // Calculate average conditions over the run duration
-    const avgTemp = futureHours.reduce((sum, h) => sum + (toF(h.temperature) || tempFWx), tempFWx) / (futureHours.length + 1);
-    const avgApparent = futureHours.reduce((sum, h) => sum + (toF(h.apparent) || usedApparentF), usedApparentF) / (futureHours.length + 1);
-    const avgHumidity = futureHours.reduce((sum, h) => sum + (h.humidity || wx.humidity), wx.humidity) / (futureHours.length + 1);
-    const avgWind = futureHours.reduce((sum, h) => sum + (h.wind || wx.wind), wx.wind) / (futureHours.length + 1);
-    const avgUV = futureHours.reduce((sum, h) => sum + (h.uv || wx.uv), wx.uv) / (futureHours.length + 1);
-    const avgCloud = futureHours.reduce((sum, h) => sum + (h.cloud || wx.cloud || 50), wx.cloud || 50) / (futureHours.length + 1);
-    const avgPressure = futureHours.reduce((sum, h) => sum + (h.pressure || wx.pressure || 1013), wx.pressure || 1013) / (futureHours.length + 1);
-    const avgSolar = futureHours.reduce((sum, h) => sum + (h.solarRadiation || wx.solarRadiation || 0), wx.solarRadiation || 0) / (futureHours.length + 1);
-    
-    // For precipitation, use maximum probability and total accumulation
-    const maxPrecipProb = Math.max(wx.precipProb, ...futureHours.map(h => h.precipProb || 0));
-    const totalPrecip = (wx.precip || 0) + futureHours.reduce((sum, h) => sum + (h.precip || 0), 0);
-    
-    scoreWeatherData = {
-      tempF: avgTemp,
-      apparentF: avgApparent,
-      humidity: avgHumidity,
-      windMph: avgWind,
-      precipProb: maxPrecipProb,
-      precipIn: totalPrecip,
-      uvIndex: avgUV,
-      cloudCover: avgCloud,
-      pressure: avgPressure,
-      solarRadiation: avgSolar,
-    };
-  }
-  
   const breakdown = computeScoreBreakdown(
-    scoreWeatherData,
+    {
+      tempF: tempFWx,
+      apparentF: usedApparentF,
+      humidity: wx.humidity,
+      windMph: wx.wind,
+      precipProb: wx.precipProb,
+      precipIn: wx.precip,
+      uvIndex: wx.uv,
+    },
     workout,
     coldHands,
     recs.handsLevel,
     longRun
   );
-  
-  // Debug: Check what's in wx object vs hourly forecast
-  console.log('☀️ Solar Radiation Debug:', {
-    current_solarRadiation: wx.solarRadiation,
-    current_isDay: wx.isDay,
-    current_uv: wx.uv,
-    current_cloud: wx.cloud,
-    hourly_sample: wx.hourlyForecast?.slice(0, 12).map((h, i) => ({
-      hour: i,
-      temp: h.temperature?.toFixed(1),
-      solar: h.solarRadiation?.toFixed(1),
-      uv: h.uv?.toFixed(1)
-    }))
-  });
-  
   const score = breakdown.score;
 
   const displayApparent = Number.isFinite(usedApparentF)
@@ -2176,19 +2610,6 @@ export default function App() {
   const dewPointDisplay = Number.isFinite(dpF)
     ? (unit === "F" ? dpF : (dpF - 32) * 5 / 9)
     : null;
-  
-  // WBGT comes from breakdown (comprehensive calculation when pressure/solar available)
-  const wbgtF = breakdown?.wbF;
-  
-  // Only show WBGT when feels-like temp is >= 50°F (heat stress becomes relevant)
-  // Below 50°F, use feels-like temperature for cold assessment
-  const useWBGT = Number.isFinite(wbgtF) && usedApparentF >= 50;
-  
-  const effectiveTempF = useWBGT ? wbgtF : usedApparentF;
-  const effectiveTempDisplay = Number.isFinite(effectiveTempF)
-    ? (unit === "F" ? effectiveTempF : (effectiveTempF - 32) * 5 / 9)
-    : null;
-  const effectiveTempLabel = useWBGT ? "WBGT" : "Feels Like";
 
   const roadConditions = calculateRoadConditions({
     tempF: tempFWx,
@@ -2203,8 +2624,6 @@ export default function App() {
     parts: breakdown.parts,
     dpF,
     apparentF: usedApparentF,
-    tempF: tempFWx,
-    humidity: wx.humidity,
     windMph: wx.wind,
     precipProb: wx.precipProb,
     workout,
@@ -2215,7 +2634,6 @@ export default function App() {
     willRain: longRun && wx.hourlyForecast?.some((h, i) => i > 0 && i <= 2 && (h.precipProb > 40 || h.precip > 0.02)),
     roadConditions,
     runnerBoldness,
-    cloudCover: wx.cloud || 50,
   });
 
   const parseTimes = (values) =>
@@ -2434,7 +2852,6 @@ export default function App() {
       let slotPrecipProb = typeof slot.precipProb === "number" ? slot.precipProb : 0;
       let slotPrecip = typeof slot.precip === "number" ? slot.precip : 0;
       let slotUv = typeof slot.uv === "number" ? slot.uv : 0;
-      let slotCloud = typeof slot.cloud === "number" ? slot.cloud : (wx.cloud || 50);
 
       // Align "Now" slot exactly with the values driving the primary gauge/controls.
       if (idx === 0) {
@@ -2444,7 +2861,6 @@ export default function App() {
         slotPrecipProb = wx.precipProb;
         slotPrecip = wx.precip;
         slotUv = wx.uv;
-        slotCloud = wx.cloud || 50;
       }
 
       const slotTempF = toF(slotTemp);
@@ -2478,9 +2894,6 @@ export default function App() {
           precipProb: slotPrecipProb,
           precipIn: slotPrecip,
           uvIndex: slotUv,
-          cloudCover: slotCloud,
-          pressure: typeof slot.pressure === "number" ? slot.pressure : wx.pressure,
-          solarRadiation: typeof slot.solarRadiation === "number" ? slot.solarRadiation : 0,
         },
         workout,
         coldHands,
@@ -2489,8 +2902,7 @@ export default function App() {
 
       const slotScore = slotBreakdown.score;
       const slotLabel = scoreLabel(slotScore);
-      const displaySlotScore = getDisplayedScore(slotScore, runnerBoldness);
-      const tone = scoreBasedTone(displaySlotScore);
+      const tone = scoreTone(slotScore, slotApparentF);
 
       const displayApparent = Number.isFinite(slotApparentF)
         ? (unit === "F"
@@ -2541,7 +2953,7 @@ export default function App() {
     })
     .filter(Boolean);
 
-  const tone = scoreBasedTone(getDisplayedScore(score, runnerBoldness));
+  const tone = scoreTone(score, usedApparentF);
   
   // Find best run time for today and tomorrow within user-defined hours
   const findBestRunTimes = () => {
@@ -2623,9 +3035,6 @@ export default function App() {
           precipProb: slotPrecipProb,
           precipIn: slotPrecip,
           uvIndex: slotUv,
-          cloudCover: wx.cloud || 50,
-          pressure: slot.pressure || wx.pressure,
-          solarRadiation: slot.solarRadiation || 0,
         },
         workout,
         coldHands,
@@ -2679,8 +3088,6 @@ export default function App() {
     recs,
     displayApparent,
     dewPointDisplay,
-    effectiveTempDisplay,
-    effectiveTempLabel,
     manualOn,
     hands: recs.handsLevel,
     handsText: handsLabel(recs.handsLevel),
@@ -2702,30 +3109,11 @@ export default function App() {
   };
 }, [wx, unit, runType, coldHands, gender, customTempEnabled, customTempInput, twilightTerms, tempSensitivity, runnerBoldness]);
 
-  // Calculate displayed score properties (visual only, based on boldness)
-  const displayedScoreProps = useMemo(() => {
-    if (!derived) return null;
-    const displayScore = getDisplayedScore(derived.score, runnerBoldness);
-    return {
-      score: displayScore,
-      label: scoreLabel(displayScore),
-      tone: scoreBasedTone(displayScore),
-    };
-  }, [derived?.score, derived?.apparentF, runnerBoldness, getDisplayedScore]);
 
   const gaugeData = useMemo(() => {
-    if (!derived || !displayedScoreProps) return [{ name: "score", value: 0, fill: "#0ea5e9" }];
-    const fillColor = displayedScoreProps.tone?.fillColor || "#0ea5e9";
-    const displayScore = displayedScoreProps.score;
-    return [{ name: "score", value: displayScore, fill: fillColor }];
-  }, [derived, displayedScoreProps]);
-
-  // Selected hour display props (visual-only, based on boldness)
-  const selectedHourDisplay = useMemo(() => {
-    if (!selectedHourData) return null;
-    const ds = typeof selectedHourData.score === 'number' ? getDisplayedScore(selectedHourData.score, runnerBoldness) : selectedHourData.score;
-    return { score: ds, label: scoreLabel(ds), tone: scoreBasedTone(ds) };
-  }, [selectedHourData?.score, runnerBoldness, getDisplayedScore]);
+    const fillColor = derived?.tone?.fillColor || "#0ea5e9";
+    return [{ name: "score", value: derived?.score ?? 0, fill: fillColor }];
+  }, [derived?.score, derived?.tone]);
 
   // Compare options by gear keys only (ignore workout/coldHands metadata)
   const encodeOptionList = (list = []) => list.map((item) => item.key).sort().join(",");
@@ -2736,32 +3124,9 @@ export default function App() {
   }, [optionsDiffer]);
 
   const activeItems = derived
-    ? (() => {
-        const items = optionsDiffer && activeOption === "B"
-          ? derived.recs.optionB
-          : derived.recs.optionA;
-        
-        // Sort items by category in the desired order
-        const categoryOrder = {
-          'Headwear': 1,
-          'Tops': 2,
-          'Outerwear': 3,
-          'Hands': 4,
-          'Bottoms': 5,
-          'Accessories': 6,
-          'Socks': 7,
-          'Nutrition': 8,
-          'Care': 9
-        };
-        
-        return items.sort((a, b) => {
-          const aCategory = GEAR_INFO[a.key]?.category || 'Accessories';
-          const bCategory = GEAR_INFO[b.key]?.category || 'Accessories';
-          const aOrder = categoryOrder[aCategory] || 99;
-          const bOrder = categoryOrder[bCategory] || 99;
-          return aOrder - bOrder;
-        });
-      })()
+    ? optionsDiffer && activeOption === "B"
+      ? derived.recs.optionB
+      : derived.recs.optionA
     : [];
 
   const optionTitle = useMemo(() => {
@@ -2786,15 +3151,8 @@ export default function App() {
   const apparentForCondition = derived && Number.isFinite(derived.displayApparent)
     ? Math.round(derived.displayApparent)
     : null;
-  
-  // Use WBGT for warm weather (≥50°F feels-like), feels-like for cold weather
-  const useWBGTForCondition = apparentForCondition != null && apparentForCondition >= 50;
-  const conditionTemp = useWBGTForCondition 
-    ? (derived?.wbgtF != null ? Math.round(derived.wbgtF) : apparentForCondition)
-    : apparentForCondition;
-  
-  const condition = derived && conditionTemp != null
-    ? getRunningCondition(conditionTemp, useWBGTForCondition)
+  const condition = derived && apparentForCondition != null
+    ? getRunningCondition(apparentForCondition)
     : null;
 
   const weatherSourceLabel = useMemo(() => {
@@ -2827,7 +3185,7 @@ export default function App() {
   }, [place?.name, place?.lat, place?.lon, place?.source]);
 
   const pageThemeClass = theme === "dark"
-    ? "bg-gradient-to-br from-slate-950 via-slate-1000 to-slate-1050 text-slate-100"
+    ? "bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100"
     : "bg-gradient-to-b from-sky-50 via-white to-sky-50/30 text-gray-900";
 
   // Check if it's evening (5 PM - 11 PM) for Tomorrow's Outfit placement
@@ -2922,71 +3280,6 @@ export default function App() {
           </motion.div>
         </motion.header>
 
-        {/* Smart Night Running Card - Shows at top when enabled and conditions are met */}
-        {smartNightCard && derived?.moonPhase && (() => {
-          const moonLight = derived.moonPhase.illuminationPct;
-          const skyClarity = 100 - (wx?.cloud || 0);
-          const humidity = wx?.humidity || 0;
-          const tempDewDiff = Math.abs((wx?.temperature || 0) - (derived?.dewPointDisplay || 0));
-          const isFoggy = humidity > 90 && tempDewDiff < 3;
-          const fogFactor = isFoggy ? 0.3 : humidity > 90 && tempDewDiff < 8 ? 0.6 : 1.0;
-          const effectiveVis = Math.round((moonLight * skyClarity / 100) * fogFactor);
-          const isNightTime = wx?.isDay === false;
-          
-          // Only show at top if it's nighttime and visibility > 75%
-          if (!isNightTime || effectiveVis <= 75) {
-            return null;
-          }
-          
-          return (
-            <motion.div 
-              variants={cardVariants}
-              initial="initial"
-              animate="animate"
-              className="mt-6"
-            >
-              <Card className="overflow-hidden border-2 border-purple-300/60 dark:border-purple-500/40 shadow-xl">
-                <CardHeader className="bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-blue-500/10 dark:from-indigo-500/20 dark:via-purple-500/20 dark:to-blue-500/20">
-                  <CardTitle className="flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-600 to-purple-600 dark:from-indigo-500 dark:to-purple-500">
-                        <Moon className="h-4 w-4 text-white" />
-                      </div>
-                      Great Night for Running
-                    </span>
-                    <span className="text-sm font-normal text-emerald-600 dark:text-emerald-400">
-                      {effectiveVis}% Visibility
-                    </span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-500/20">
-                      <span className="text-2xl">{derived.moonPhase.emoji}</span>
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-2">
-                        Excellent visibility tonight
-                      </div>
-                      <div className="text-sm text-gray-700 dark:text-slate-300 space-y-1">
-                        <p>Moon at {derived.moonPhase.illuminationPct}% illumination ({derived.moonPhase.name}) provides strong natural light.</p>
-                        <p>Clear skies ({skyClarity.toFixed(0)}% clarity) and good atmospheric conditions make this ideal for an evening run.</p>
-                      </div>
-                      <div className="mt-4 flex items-center gap-2 text-xs text-gray-600 dark:text-slate-400">
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 dark:bg-emerald-500/20 px-2 py-1">
-                          <span className="font-medium text-emerald-700 dark:text-emerald-300">Safe to run</span>
-                        </span>
-                        <span>•</span>
-                        <span>Headlamp optional</span>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          );
-        })()}
-
         {/* Tomorrow's Outfit Card - Prominent Evening Version */}
         {isEvening && showTomorrowOutfit && derived && wx?.hourlyForecast?.length > 0 && (() => {
           const now = new Date();
@@ -3023,8 +3316,6 @@ export default function App() {
           const avgPrecipProb = slots.reduce((sum, s) => sum + (typeof s.precipProb === 'number' ? s.precipProb : 0), 0) / slots.length;
           const avgPrecip = slots.reduce((sum, s) => sum + (typeof s.precip === 'number' ? s.precip : 0), 0) / slots.length;
           const avgUv = slots.reduce((sum, s) => sum + (typeof s.uv === 'number' ? s.uv : 0), 0) / slots.length;
-          const avgPressure = slots.reduce((sum, s) => sum + (typeof s.pressure === 'number' ? s.pressure : wx.pressure), 0) / slots.length;
-          const avgSolarRadiation = slots.reduce((sum, s) => sum + (typeof s.solarRadiation === 'number' ? s.solarRadiation : 0), 0) / slots.length;
           
           const tomorrowOutfit = outfitFor(
             {
@@ -3052,21 +3343,16 @@ export default function App() {
               windMph: avgWind,
               precipProb: avgPrecipProb,
               precipIn: avgPrecip,
-              uvIndex: avgUv,
-              cloudCover: wx.cloud || 50,
-              pressure: avgPressure,
-              solarRadiation: avgSolarRadiation,
+              uvIndex: avgUv
             },
             tomorrowCardRunType === 'workout',
             coldHands,
-            tomorrowOutfit.handsLevel,
-            tomorrowCardRunType === 'longRun'
+            tomorrowOutfit.handsLevel
           );
           
           const tomorrowScore = tomorrowBreakdown.score;
-          const displayTomorrowScore = getDisplayedScore(tomorrowScore, runnerBoldness);
-          const tomorrowLabel = scoreLabel(displayTomorrowScore);
-          const tomorrowTone = scoreBasedTone(displayTomorrowScore);
+          const tomorrowLabel = scoreLabel(tomorrowScore);
+          const tomorrowTone = scoreTone(tomorrowScore, avgApparent);
           const displayTemp = unit === "F" ? Math.round(avgApparent) : Math.round((avgApparent - 32) * 5 / 9);
           const tomorrowItems = tomorrowCardOption === 'A' ? (tomorrowOutfit.optionA || []) : (tomorrowOutfit.optionB || []);
           
@@ -3077,16 +3363,8 @@ export default function App() {
               animate="animate"
               className="mb-6"
             >
-              <Card className={`overflow-hidden border-2 shadow-xl ${
-                gender === "Female"
-                  ? "border-pink-300 dark:border-pink-500 bg-gradient-to-br from-pink-50 via-pink-50/50 to-pink-100/70 dark:from-pink-900/50 dark:via-pink-900/30 dark:to-pink-900/50"
-                  : "border-sky-400 dark:border-sky-600 bg-gradient-to-br from-sky-100 via-blue-50 to-sky-100 dark:from-sky-900/70 dark:via-blue-900/50 dark:to-sky-900/70"
-              }`}>
-                <CardHeader className={`pb-8 ${
-                  gender === "Female"
-                    ? "bg-gradient-to-r from-pink-500 to-pink-600 dark:from-pink-600 dark:to-pink-700"
-                    : "bg-gradient-to-r from-sky-600 to-blue-700 dark:from-sky-700 dark:to-blue-800"
-                }`}>
+              <Card className="overflow-hidden border-2 border-sky-400 dark:border-sky-600 bg-gradient-to-br from-sky-100 via-blue-50 to-sky-100 dark:from-sky-900/70 dark:via-blue-900/50 dark:to-sky-900/70 shadow-xl">
+                <CardHeader className="bg-gradient-to-r from-sky-600 to-blue-700 dark:from-sky-700 dark:to-blue-800 pb-8">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/30 backdrop-blur-sm ring-2 ring-white/40">
@@ -3094,20 +3372,12 @@ export default function App() {
                       </div>
                       <div>
                         <div className="text-2xl font-bold text-white">Tomorrow's Run</div>
-                        <div className={`text-sm ${
-                          gender === "Female"
-                            ? "text-pink-100"
-                            : "text-sky-100"
-                        }`}>Lay out your gear tonight</div>
+                        <div className="text-sm text-sky-100">Lay out your gear tonight</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="text-right">
-                        <div className={`text-xs font-medium ${
-                          gender === "Female"
-                            ? "text-pink-100"
-                            : "text-sky-100"
-                        }`}>
+                        <div className="text-xs font-medium text-sky-100">
                           {tomorrow.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}
                         </div>
                         <div className="text-sm font-semibold text-white">
@@ -3125,12 +3395,14 @@ export default function App() {
                       </motion.button>
                     </div>
                   </div>
+                  
+                  {/* Run Type Pills */}
                   <div className="mt-4 flex gap-2">
                     <button
                       onClick={() => { setTomorrowCardRunType('easy'); setTomorrowRunType('easy'); }}
                       className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
                         tomorrowCardRunType === 'easy'
-                          ? 'bg-white text-pink-600 shadow-sm dark:bg-white/95 dark:text-pink-700'
+                          ? 'bg-white text-sky-700 shadow-lg'
                           : 'bg-white/20 text-white hover:bg-white/30'
                       }`}
                     >
@@ -3140,7 +3412,7 @@ export default function App() {
                       onClick={() => { setTomorrowCardRunType('workout'); setTomorrowRunType('workout'); }}
                       className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
                         tomorrowCardRunType === 'workout'
-                          ? 'bg-white text-pink-600 shadow-sm dark:bg-white/95 dark:text-pink-700'
+                          ? 'bg-white text-orange-700 shadow-lg'
                           : 'bg-white/20 text-white hover:bg-white/30'
                       }`}
                     >
@@ -3150,121 +3422,168 @@ export default function App() {
                       onClick={() => { setTomorrowCardRunType('longRun'); setTomorrowRunType('longRun'); }}
                       className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
                         tomorrowCardRunType === 'longRun'
-                          ? 'bg-white text-pink-600 shadow-sm dark:bg-white/95 dark:text-pink-700'
+                          ? 'bg-white text-purple-700 shadow-lg'
                           : 'bg-white/20 text-white hover:bg-white/30'
                       }`}
                     >
-                      Long Run
+                      Long
                     </button>
                   </div>
                 </CardHeader>
                 <CardContent className="p-6">
-                  <div className="space-y-6">
-                    {/* Score display */}
-                    <div className="flex items-center justify-between rounded-xl bg-white/70 dark:bg-slate-800/50 p-4">
-                      <div>
-                        <div className="text-sm font-medium text-slate-600 dark:text-slate-400">Run Score</div>
-                        <div className="text-3xl font-extrabold mt-1" style={tomorrowTone.textStyle}>{displayTomorrowScore}</div>
-                        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">{tomorrowLabel.text}</div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {/* Weather Summary */}
+                    <div className="rounded-xl border-2 border-sky-300/60 dark:border-sky-700/60 bg-white dark:bg-slate-800 p-4">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="text-xs font-medium uppercase tracking-wide text-sky-700 dark:text-sky-300">Conditions</div>
+                          <div className="mt-1 text-3xl font-bold text-sky-900 dark:text-sky-100">{displayTemp}°{unit}</div>
+                          {slots.length > 1 && (
+                            <div className="mt-0.5 text-xs text-sky-600 dark:text-sky-400">Avg of {slots.length} hours</div>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <div className="text-4xl font-bold" style={tomorrowTone.textStyle}>{tomorrowScore}</div>
+                          <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold" style={tomorrowTone.badgeStyle}>
+                            {tomorrowLabel.text}
+                          </span>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-sm font-medium text-slate-600 dark:text-slate-400">Feels Like</div>
-                        <div className="text-2xl font-bold text-slate-700 dark:text-slate-200 mt-1">{displayTemp}°{unit}</div>
+                      {/* Weather Description */}
+                      <div className="mt-3 text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                        {(() => {
+                          const temp = Math.round(avgApparent);
+                          const wind = Math.round(avgWind);
+                          const precip = Math.round(avgPrecipProb);
+                          const humid = Math.round(avgHumidity);
+                          
+                          let description = "";
+                          
+                          // Temperature feel
+                          if (temp < 32) description += "Freezing";
+                          else if (temp < 40) description += "Very cold";
+                          else if (temp < 50) description += "Cold";
+                          else if (temp < 60) description += "Cool";
+                          else if (temp < 70) description += "Mild";
+                          else if (temp < 80) description += "Warm";
+                          else description += "Hot";
+                          
+                          // Precipitation
+                          if (precip >= 70) description += " with heavy rain likely";
+                          else if (precip >= 40) description += " with rain possible";
+                          
+                          // Wind
+                          if (wind >= 20) description += ", very windy";
+                          else if (wind >= 15) description += ", breezy";
+                          
+                          // Humidity
+                          if (humid >= 80 && temp >= 60) description += ", humid";
+                          
+                          description += ".";
+                          
+                          // Advice
+                          if (temp < 40 && wind >= 15) description += " Windchill will be a factor.";
+                          else if (temp >= 75 && humid >= 70) description += " Stay hydrated.";
+                          else if (precip >= 60) description += " Bring waterproof gear.";
+                          
+                          return description;
+                        })()}
                       </div>
+                      {(avgPrecipProb >= 40 || avgWind >= 15 || avgUv >= 6) && (
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {avgPrecipProb >= 40 && (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200">
+                              <CloudRain className="h-3 w-3" />
+                              {Math.round(avgPrecipProb)}%
+                            </span>
+                          )}
+                          {avgWind >= 15 && (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-900/40 dark:text-sky-200">
+                              <Wind className="h-3 w-3" />
+                              {Math.round(avgWind)} mph
+                            </span>
+                          )}
+                          {avgUv >= 6 && (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                              <Sun className="h-3 w-3" />
+                              UV {Math.round(avgUv)}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  
-                  {/* Outfit items */}
-                  <div>
-                    <div className="mb-3 flex items-center justify-between">
-                      <h3 className="font-semibold text-slate-700 dark:text-slate-200">Tomorrow's Outfit</h3>
-                      <div className="flex gap-1">
-                        <button
-                          onClick={() => setTomorrowCardOption('A')}
-                          className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-                            tomorrowCardOption === 'A'
-                              ? 'bg-sky-500 text-white dark:bg-sky-600'
-                              : 'bg-slate-200 text-slate-600 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
-                          }`}
-                        >
-                          Option A
-                        </button>
-                        <button
-                          onClick={() => setTomorrowCardOption('B')}
-                          className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-                            tomorrowCardOption === 'B'
-                              ? 'bg-sky-500 text-white dark:bg-sky-600'
-                              : 'bg-slate-200 text-slate-600 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
-                          }`}
-                        >
-                          Option B
-                        </button>
-                      </div>
-                    </div>
-                    <div className="grid gap-2.5 sm:grid-cols-2">
-                      {tomorrowItems.map((item) => {
-                        const gearInfo = GEAR_INFO[item.key];
-                        const Icon = GEAR_ICONS[item.key] || UserRound;
-                        return (
-                          <div
-                            key={item.key}
-                            className={`flex items-center gap-3 rounded-lg border p-3 ${
-                              item.workout
-                                ? 'border-orange-300 bg-orange-50/50 dark:border-orange-500/50 dark:bg-orange-500/10'
-                                : item.longRun
-                                ? 'border-purple-300 bg-purple-50/50 dark:border-purple-500/50 dark:bg-purple-500/10'
-                                : 'border-slate-200 bg-white/50 dark:border-slate-700 dark:bg-slate-800/50'
+
+                    {/* Outfit List */}
+                    <div className="rounded-xl border-2 border-sky-300/60 dark:border-sky-700/60 bg-white dark:bg-slate-800 p-4">
+                      <div className="mb-3 flex items-center justify-between">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">Your Gear</div>
+                        <div className="flex gap-1 rounded-lg bg-slate-100 dark:bg-slate-700/50 p-0.5">
+                          <button
+                            onClick={() => setTomorrowCardOption('A')}
+                            className={`rounded-md px-2 py-1 text-xs font-medium transition-all ${
+                              tomorrowCardOption === 'A'
+                                ? 'bg-white dark:bg-slate-600 text-sky-700 dark:text-sky-300 shadow-sm'
+                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                             }`}
                           >
-                            {gearInfo?.image ? (
-                              <img src={gearInfo.image} alt={item.label} className="h-10 w-10 flex-shrink-0 object-cover rounded-lg" />
-                            ) : (
-                              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-slate-700">
-                                <Icon className="h-5 w-5 text-gray-600 dark:text-slate-300" />
-                              </div>
-                            )}
-                            <div className="min-w-0 flex-1">
-                              <div className="font-medium text-slate-800 dark:text-slate-100">{item.label}</div>
-                              {item.detail && (
-                                <div className="text-xs text-slate-500 dark:text-slate-400">{item.detail}</div>
-                              )}
-                              {item.workout && (
-                                <div className="text-xs text-orange-600 dark:text-orange-400">Workout-specific</div>
-                              )}
-                              {item.longRun && (
-                                <div className="text-xs text-purple-600 dark:text-purple-400">Long run essential</div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
+                            Performance
+                          </button>
+                          <button
+                            onClick={() => setTomorrowCardOption('B')}
+                            className={`rounded-md px-2 py-1 text-xs font-medium transition-all ${
+                              tomorrowCardOption === 'B'
+                                ? 'bg-white dark:bg-slate-600 text-sky-700 dark:text-sky-300 shadow-sm'
+                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                            }`}
+                          >
+                            Comfort
+                          </button>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        {tomorrowItems.map((item, idx) => (
+                          <motion.div
+                            key={item.key}
+                            className="flex items-center gap-2 text-sm"
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: idx * 0.03 }}
+                          >
+                            <span className="text-sky-500 dark:text-sky-400">•</span>
+                            <span className="font-medium text-slate-900 dark:text-slate-100">{item.label}</span>
+                            {item.detail && <span className="text-xs text-slate-500 dark:text-slate-400">({item.detail})</span>}
+                          </motion.div>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
                 </CardContent>
               </Card>
             </motion.div>
           );
         })()}
 
-        {/* Main Weather Card */}
         {/* Controls */}
         <motion.div variants={cardVariants}>
           <Card className="overflow-hidden">
-            <CardHeader className={`bg-gradient-to-br py-3 ${
-              gender === "Female"
-                ? "from-pink-400/10 via-pink-500/10 to-pink-400/10 dark:from-pink-400/20 dark:via-pink-500/20 dark:to-pink-400/20"
-                : "from-sky-500/10 via-blue-500/10 to-indigo-500/10 dark:from-sky-500/20 dark:via-blue-500/20 dark:to-indigo-500/20"
-            }`}>
+            <CardHeader className="bg-gradient-to-br from-sky-500/10 via-blue-500/10 to-indigo-500/10 dark:from-sky-500/20 dark:via-blue-500/20 dark:to-indigo-500/20 py-3">
               <CardTitle className="flex items-center justify-between text-base">
                 <span className="flex items-center gap-2">
                   <div className={`flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br ${
                     gender === "Female"
-                      ? "from-pink-400 to-pink-500 dark:from-pink-400 dark:to-pink-500"
+                      ? "from-pink-500 to-rose-600 dark:from-pink-400 dark:to-rose-500"
                       : "from-blue-500 to-indigo-600 dark:from-blue-400 dark:to-indigo-500"
                   }`}>
                     <Gauge className="h-4 w-4 text-white" />
                   </div>
                   Run Controls
+                </span>
+                <span className={`flex items-center text-xl leading-none ${
+                  gender === "Female"
+                    ? "text-pink-500 dark:text-pink-400"
+                    : "text-blue-500 dark:text-blue-400"
+                }`}>
+                  {gender === "Female" ? "♀" : "♂"}
                 </span>
               </CardTitle>
             </CardHeader>
@@ -3302,47 +3621,16 @@ export default function App() {
                     )}
                   </div>
                   
-                  {/* Condition Badge with Performance Details */}
+                  {/* Condition Badge */}
                   {derived && condition && (
-                    <motion.div
-                      className="group relative inline-block"
+                    <motion.span 
+                      className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium whitespace-nowrap shrink-0 ${condition.badgeClass}`}
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: 0.2, duration: 0.3 }}
                     >
-                      <span 
-                        className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium whitespace-normal sm:whitespace-nowrap shrink-0 cursor-help ${condition.badgeClass}`}
-                        title="Hover for performance details"
-                      >
-                        {condition.text}
-                      </span>
-                      
-                      {/* Tooltip with performance and action details */}
-                      {condition.performance && condition.action && (
-                        <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute z-50 left-0 top-full mt-2 w-80 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-xl">
-                          <div className="space-y-3">
-                            <div>
-                              <div className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-                                Performance Impact
-                              </div>
-                              <div className="text-sm text-gray-700 dark:text-slate-300">
-                                {condition.performance}
-                              </div>
-                            </div>
-                            <div>
-                              <div className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-                                Recommended Actions
-                              </div>
-                              <div className="text-sm text-gray-700 dark:text-slate-300">
-                                {condition.action}
-                              </div>
-                            </div>
-                          </div>
-                          {/* Tooltip arrow */}
-                          <div className="absolute -top-1 left-4 h-2 w-2 rotate-45 border-l border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800" />
-                        </div>
-                      )}
-                    </motion.div>
+                      {condition.text}
+                    </motion.span>
                   )}
                 </div>
 
@@ -3360,8 +3648,8 @@ export default function App() {
                       title="Click to view Run Score Breakdown"
                     >
                       <div className="flex flex-col">
-                        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Score</span>
-                        <span className="text-3xl font-extrabold" style={displayedScoreProps?.tone?.textStyle}>{displayedScoreProps ? displayedScoreProps.score : '--'}</span>
+                        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Run Score</span>
+                        <span className="text-3xl font-extrabold" style={derived.tone.textStyle}>{derived.score}</span>
                       </div>
                     </motion.button>
                     
@@ -3466,28 +3754,15 @@ export default function App() {
                             {activeItems.map((item, idx) => (
                               <motion.div 
                                 key={item.key} 
-                                className="group relative rounded-xl border border-gray-200/60 dark:border-slate-700/60 bg-gradient-to-br from-white to-gray-50/30 dark:from-slate-800/40 dark:to-slate-900/40 px-4 py-3 transition-all hover:shadow-sm hover:border-gray-300 dark:hover:border-slate-600 cursor-pointer"
+                                className="group relative rounded-xl border border-gray-200/60 dark:border-slate-700/60 bg-gradient-to-br from-white to-gray-50/30 dark:from-slate-800/40 dark:to-slate-900/40 px-4 py-3 transition-all hover:shadow-sm hover:border-gray-300 dark:hover:border-slate-600"
                                 variants={listItemVariants}
                                 whileHover={{ x: 4, transition: { duration: 0.2 } }}
-                                onClick={() => setSelectedOutfitItem(item.key)}
                               >
                                 <div className="flex items-center justify-between gap-3">
                                   <div className="flex items-center gap-3">
-                                    {(() => {
-                                      const gearInfo = GEAR_INFO[item.key];
-                                      const Icon = GEAR_ICONS[item.key] || UserRound;
-                                      return gearInfo?.image ? (
-                                        <img 
-                                          src={gearInfo.image} 
-                                          alt={item.label} 
-                                          className="h-10 w-10 rounded-lg object-cover"
-                                        />
-                                      ) : (
-                                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 dark:bg-slate-700">
-                                          <Icon className="h-5 w-5 text-gray-600 dark:text-slate-300" />
-                                        </div>
-                                      );
-                                    })()}
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-gray-100 to-gray-200/50 dark:from-slate-700/60 dark:to-slate-800/60 text-xs font-bold text-gray-600 dark:text-slate-300">
+                                      {idx + 1}
+                                    </div>
                                     <span className="text-sm font-semibold text-gray-800 dark:text-slate-100">{item.label}</span>
                                   </div>
                                   {(item.coldHands || item.workout || item.longRun) && (
@@ -3569,9 +3844,7 @@ export default function App() {
                           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-sky-500 to-blue-500">
                             <Flame className="h-4 w-4 text-white" />
                           </div>
-                          <CardTitle className="text-base">
-                            {runType === 'easy' ? 'Easy Run' : runType === 'workout' ? 'Hard Workout' : 'Long Run'} Strategy
-                          </CardTitle>
+                          <CardTitle className="text-base">Today's Run Strategy</CardTitle>
                         </div>
                         {derived?.roadConditions?.hasWarnings && (
                           <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${
@@ -3636,8 +3909,8 @@ export default function App() {
                   </Card>
                 )}
                 
-                <ForecastCard derived={derived} getDisplayedScore={getDisplayedScore} runnerBoldness={runnerBoldness} className="lg:hidden" />
-                <BestRunTimeCard derived={derived} unit={unit} getDisplayedScore={getDisplayedScore} runnerBoldness={runnerBoldness} className="lg:hidden" />
+                <ForecastCard derived={derived} className="lg:hidden" />
+                <BestRunTimeCard derived={derived} unit={unit} className="lg:hidden" />
 
             </motion.div>
 
@@ -3647,14 +3920,14 @@ export default function App() {
   <CardHeader className="pb-3">
     <div className="flex items-start justify-between">
       <div>
-        <CardTitle className="text-xl font-bold">Performance Score</CardTitle>
+        <CardTitle className="text-xl font-bold">Run ! Score</CardTitle>
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          {displayedScoreProps ? displayedScoreProps.label.tone : "Loading conditions..."}
+          {derived ? derived.label.tone : "Loading conditions..."}
         </p>
       </div>
-      {displayedScoreProps && (
-        <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium`} style={displayedScoreProps.tone.badgeStyle}>
-          {displayedScoreProps.label.text}
+      {condition && (
+        <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium ${condition.badgeClass}`}>
+          {condition.text}
         </span>
       )}
     </div>
@@ -3667,10 +3940,10 @@ export default function App() {
         <RadialBar minAngle={15} background dataKey="value" clockWise cornerRadius={20} />
       </RadialBarChart>
       <div className="pointer-events-none absolute text-center">
-        <div className="text-6xl font-extrabold" style={displayedScoreProps?.tone?.textStyle}>
-          {displayedScoreProps ? displayedScoreProps.score : "--"}
+        <div className="text-6xl font-extrabold" style={derived?.tone?.textStyle}>
+          {derived ? derived.score : "--"}
         </div>
-        <div className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">out of 100</div>
+        <div className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">out of 10</div>
       </div>
     </div>
 
@@ -3724,23 +3997,6 @@ export default function App() {
           </div>
         </div>
       </motion.div>
-      {derived?.effectiveTempLabel === "WBGT" && (
-        <motion.div 
-          className="flex items-center gap-2.5 rounded-xl border border-gray-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 p-3"
-          variants={listItemVariants}
-          whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
-        >
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-500/20">
-            <Thermometer className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-xs text-gray-500 dark:text-slate-400">WBGT</div>
-            <div className="text-sm font-bold text-gray-800 dark:text-slate-100">
-              {wx && Number.isFinite(derived?.effectiveTempDisplay) ? `${round1(derived.effectiveTempDisplay)}°${unit}` : "--"}
-            </div>
-          </div>
-        </motion.div>
-      )}
       <motion.div 
         className="flex items-center gap-2.5 rounded-xl border border-gray-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 p-3"
         variants={listItemVariants}
@@ -3816,7 +4072,7 @@ export default function App() {
           </div>
         </div>
       </motion.div>
-      {wx && (wx.humidity > 90 && Math.abs(wx.temperature - (derived?.dewPointDisplay || 0)) < 3) && (
+      {wx && (wx.humidity > 85 && Math.abs(wx.temperature - (derived?.dewPointDisplay || 0)) < 5) && (
         <motion.div 
           className="flex items-center gap-2.5 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50/60 dark:bg-amber-500/10 p-3"
           variants={listItemVariants}
@@ -3841,35 +4097,13 @@ export default function App() {
   </motion.div>
             
         <motion.div variants={cardVariants}>
-          <ForecastCard derived={derived} getDisplayedScore={getDisplayedScore} runnerBoldness={runnerBoldness} className="lg:col-start-3 hidden lg:block" />
-          <BestRunTimeCard derived={derived} unit={unit} getDisplayedScore={getDisplayedScore} runnerBoldness={runnerBoldness} className="lg:col-start-3 hidden lg:block" />
+          <ForecastCard derived={derived} className="lg:col-start-3 hidden lg:block" />
+          <BestRunTimeCard derived={derived} unit={unit} className="lg:col-start-3 hidden lg:block" />
         </motion.div>
         </motion.div>
 
         {/* Night Running Conditions Card - Completely Redesigned */}
-        {derived?.moonPhase && (() => {
-          // Calculate effective visibility
-          const moonLight = derived.moonPhase.illuminationPct;
-          const skyClarity = 100 - (wx?.cloud || 0);
-          const humidity = wx?.humidity || 0;
-          const tempDewDiff = Math.abs((wx?.temperature || 0) - (derived?.dewPointDisplay || 0));
-          const isFoggy = humidity > 85 && tempDewDiff < 5;
-          const fogFactor = isFoggy ? 0.3 : humidity > 90 && tempDewDiff < 8 ? 0.6 : 1.0;
-          const effectiveVis = Math.round((moonLight * skyClarity / 100) * fogFactor);
-          
-          // Check if it's nighttime (not day)
-          const isNightTime = wx?.isDay === false;
-          
-          // Determine if card should show at top (smart mode) or bottom (always)
-          const showAtTop = smartNightCard && isNightTime && effectiveVis > 75;
-          const showAtBottom = !smartNightCard;
-          
-          // Don't render anything if smart mode is on but conditions aren't met
-          if (smartNightCard && (!isNightTime || effectiveVis <= 75)) {
-            return null;
-          }
-          
-          return showAtTop || showAtBottom ? (
+        {derived?.moonPhase && (
           <motion.div
             variants={cardVariants}
             initial="initial"
@@ -4013,7 +4247,7 @@ export default function App() {
                       <div className="rounded-xl border border-blue-200/50 dark:border-blue-500/30 bg-gradient-to-br from-blue-50/50 to-sky-50/30 dark:from-blue-500/10 dark:to-sky-500/5 p-4">
                         <div className="text-xs font-medium uppercase tracking-wide text-blue-700 dark:text-blue-300">Sky Clarity</div>
                         <div className="mt-1 text-3xl font-bold text-blue-900 dark:text-blue-100">
-                          {(100 - (wx?.cloud || 0)).toFixed(1)}%
+                          {100 - (wx?.cloud || 0)}%
                         </div>
                         <div className="mt-1 text-xs text-gray-600 dark:text-slate-400">
                           {(wx?.cloud || 0) < 20 ? 'Clear skies' :
@@ -4049,7 +4283,7 @@ export default function App() {
                         </div>
                         <div className="flex justify-between">
                           <span>Sky clarity:</span>
-                          <span className="font-medium">{(100 - (wx?.cloud || 0)).toFixed(1)}%</span>
+                          <span className="font-medium">{100 - (wx?.cloud || 0)}%</span>
                         </div>
                         {(() => {
                           const humidity = wx?.humidity || 0;
@@ -4286,8 +4520,7 @@ export default function App() {
               </CardContent>
             </Card>
           </motion.div>
-          ) : null;
-        })()}
+        )}
 
         {/* Tomorrow's Outfit Card - Subtle Bottom Version (shown only when not evening) */}
         {!isEvening && showTomorrowOutfit && derived && wx?.hourlyForecast?.length > 0 && (() => {
@@ -4328,8 +4561,6 @@ export default function App() {
           const avgPrecipProb = slots.reduce((sum, s) => sum + (typeof s.precipProb === 'number' ? s.precipProb : 0), 0) / slots.length;
           const avgPrecip = slots.reduce((sum, s) => sum + (typeof s.precip === 'number' ? s.precip : 0), 0) / slots.length;
           const avgUv = slots.reduce((sum, s) => sum + (typeof s.uv === 'number' ? s.uv : 0), 0) / slots.length;
-          const avgPressure = slots.reduce((sum, s) => sum + (typeof s.pressure === 'number' ? s.pressure : wx.pressure), 0) / slots.length;
-          const avgSolarRadiation = slots.reduce((sum, s) => sum + (typeof s.solarRadiation === 'number' ? s.solarRadiation : 0), 0) / slots.length;
           
           // Get outfit for tomorrow using the selected run type
           const tomorrowOutfit = outfitFor(
@@ -4358,21 +4589,16 @@ export default function App() {
               windMph: avgWind,
               precipProb: avgPrecipProb,
               precipIn: avgPrecip,
-              uvIndex: avgUv,
-              cloudCover: wx.cloud || 50,
-              pressure: avgPressure,
-              solarRadiation: avgSolarRadiation,
+              uvIndex: avgUv
             },
             tomorrowCardRunType === 'workout',
             coldHands,
-            tomorrowOutfit.handsLevel,
-            tomorrowCardRunType === 'longRun'
+            tomorrowOutfit.handsLevel
           );
           
           const tomorrowScore = tomorrowBreakdown.score;
-          const displayTomorrowScore = getDisplayedScore(tomorrowScore, runnerBoldness);
-          const tomorrowLabel = scoreLabel(displayTomorrowScore);
-          const tomorrowTone = scoreBasedTone(displayTomorrowScore);
+          const tomorrowLabel = scoreLabel(tomorrowScore);
+          const tomorrowTone = scoreTone(tomorrowScore, avgApparent);
           
           const displayTemp = unit === "F" ? Math.round(avgApparent) : Math.round((avgApparent - 32) * 5 / 9);
           
@@ -4452,7 +4678,7 @@ export default function App() {
                             <div className="mt-0.5 text-xl font-bold text-slate-900 dark:text-slate-100">{displayTemp}°{unit}</div>
                           </div>
                           <div className="text-right">
-                            <div className="text-2xl font-bold" style={tomorrowTone.textStyle}>{displayTomorrowScore}</div>
+                            <div className="text-2xl font-bold" style={tomorrowTone.textStyle}>{tomorrowScore}</div>
                           </div>
                         </div>
                       </div>
@@ -4603,7 +4829,6 @@ export default function App() {
                       <h3 className="text-sm font-bold text-emerald-800 dark:text-emerald-200 mb-3 uppercase tracking-wide">{category}</h3>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                         {items.map(([key, info]) => {
-                          const Icon = GEAR_ICONS[key] || UserRound;
                           return (
                             <motion.button
                               key={key}
@@ -4612,21 +4837,8 @@ export default function App() {
                               whileHover={{ scale: 1.02 }}
                               whileTap={{ scale: 0.98 }}
                             >
-                              <div className="flex items-center gap-2 mb-1">
-                                {info.image ? (
-                                  <img 
-                                    src={info.image} 
-                                    alt={info.name} 
-                                    className="h-8 w-8 rounded-lg object-cover border border-emerald-200 dark:border-emerald-700"
-                                  />
-                                ) : (
-                                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/40">
-                                    <Icon className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                                  </div>
-                                )}
-                                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{info.name}</div>
-                              </div>
-                              <div className="text-xs text-slate-500 dark:text-slate-400 ml-10">{info.tempRange}</div>
+                              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{info.name}</div>
+                              <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{info.tempRange}</div>
                             </motion.button>
                           );
                         })}
@@ -4635,86 +4847,6 @@ export default function App() {
                   );
                 })}
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-
-        {/* Outfit Item Detail Modal */}
-        {selectedOutfitItem && GEAR_INFO[selectedOutfitItem] && (
-          <motion.div
-            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
-            onClick={() => setSelectedOutfitItem(null)}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.div
-              className="relative max-h-[85vh] w-full max-w-md overflow-hidden rounded-2xl bg-white dark:bg-slate-900 shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            >
-              {(() => {
-                const item = GEAR_INFO[selectedOutfitItem];
-                const Icon = GEAR_ICONS[selectedOutfitItem] || UserRound;
-                return (
-                  <>
-                    <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 dark:border-slate-700 bg-gradient-to-br from-blue-500 to-indigo-600 px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        {item.image ? (
-                          <img 
-                            src={item.image} 
-                            alt={item.name} 
-                            className="h-14 w-14 rounded-xl object-cover border-2 border-white/30"
-                          />
-                        ) : (
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
-                            <Icon className="h-6 w-6 text-white" />
-                          </div>
-                        )}
-                        <div>
-                          <h3 className="text-lg font-bold text-white">{item.name}</h3>
-                          <p className="text-xs text-blue-100">{item.category}</p>
-                        </div>
-                      </div>
-                      <motion.button
-                        onClick={() => setSelectedOutfitItem(null)}
-                        className="rounded-lg p-1.5 text-white/80 hover:bg-white/20 hover:text-white transition-colors"
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                      >
-                        <X className="h-5 w-5" />
-                      </motion.button>
-                    </div>
-                    <div className="overflow-y-auto p-6 space-y-4">
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 mb-1">Description</h4>
-                        <p className="text-sm text-slate-600 dark:text-slate-300">{item.description}</p>
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 mb-1">When to Wear</h4>
-                        <p className="text-sm text-slate-600 dark:text-slate-300">{item.whenToWear}</p>
-                      </div>
-                      <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/20 p-3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Thermometer className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                          <h4 className="text-sm font-bold text-blue-900 dark:text-blue-100">Temperature Range</h4>
-                        </div>
-                        <p className="text-sm text-blue-700 dark:text-blue-300">{item.tempRange}</p>
-                      </div>
-                      <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-900/20 p-3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Lightbulb className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                          <h4 className="text-sm font-bold text-emerald-900 dark:text-emerald-100">Pro Tips</h4>
-                        </div>
-                        <p className="text-sm text-emerald-700 dark:text-emerald-300">{item.tips}</p>
-                      </div>
-                    </div>
-                  </>
-                );
-              })()}
             </motion.div>
           </motion.div>
         )}
@@ -4739,27 +4871,13 @@ export default function App() {
             >
               {(() => {
                 const item = GEAR_INFO[selectedGearItem];
-                const Icon = GEAR_ICONS[selectedGearItem] || UserRound;
                 return (
                   <>
                     <div className="border-b border-sky-200/60 bg-gradient-to-r from-sky-600 to-blue-700 dark:from-sky-700 dark:to-blue-800 px-6 py-4">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          {item.image ? (
-                            <img 
-                              src={item.image} 
-                              alt={item.name} 
-                              className="h-14 w-14 rounded-xl object-cover border-2 border-white/30"
-                            />
-                          ) : (
-                            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
-                              <Icon className="h-7 w-7 text-white" />
-                            </div>
-                          )}
-                          <div>
-                            <h2 className="text-xl font-bold text-white">{item.name}</h2>
-                            <div className="text-xs text-sky-100">{item.category}</div>
-                          </div>
+                        <div>
+                          <h2 className="text-xl font-bold text-white">{item.name}</h2>
+                          <div className="text-xs text-sky-100">{item.category}</div>
                         </div>
                         <motion.button
                           onClick={() => setSelectedGearItem(null)}
@@ -4910,23 +5028,25 @@ export default function App() {
                 <div className="flex items-center gap-4">
                   <button
                     onClick={() => setGender("Female")}
-                    className={`flex-1 px-4 py-2.5 rounded-lg font-medium text-sm transition-all flex items-center justify-center ${
+                    className={`flex-1 px-4 py-2.5 rounded-lg font-medium text-sm transition-all flex items-center justify-center gap-1.5 ${
                       gender === "Female"
-                        ? "bg-pink-400 dark:bg-pink-500 text-white shadow-md"
+                        ? "bg-pink-500 dark:bg-pink-600 text-white shadow-md"
                         : "bg-gray-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700"
                     }`}
                   >
-                    Female
+                    <span className="text-base leading-none">♀</span>
+                    <span>Female</span>
                   </button>
                   <button
                     onClick={() => setGender("Male")}
-                    className={`flex-1 px-4 py-2.5 rounded-lg font-medium text-sm transition-all flex items-center justify-center ${
+                    className={`flex-1 px-4 py-2.5 rounded-lg font-medium text-sm transition-all flex items-center justify-center gap-1.5 ${
                       gender === "Male"
                         ? "bg-blue-500 dark:bg-blue-600 text-white shadow-md"
                         : "bg-gray-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700"
                     }`}
                   >
-                    Male
+                    <span className="text-base leading-none">♂</span>
+                    <span>Male</span>
                   </button>
                 </div>
               </div>
@@ -4956,8 +5076,8 @@ export default function App() {
                         />
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button onClick={searchCity} disabled={loading} gender={gender}>Set</Button>
-                        <Button variant="secondary" onClick={tryGeolocate} disabled={loading} gender={gender}>
+                        <Button onClick={searchCity} disabled={loading}>Set</Button>
+                        <Button variant="secondary" onClick={tryGeolocate} disabled={loading}>
                           <Crosshair className="h-4 w-4" /> Use my location
                         </Button>
                       </div>
@@ -5076,35 +5196,13 @@ export default function App() {
                 </div>
               </div>
               
-              <div className="rounded-2xl border border-gray-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/60 p-4 space-y-3">
-                <div>
-                  <div className="text-sm font-semibold text-gray-700 dark:text-slate-200">Smart Night Running Card</div>
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">When enabled, the night running card only appears at the top when it's nighttime and visibility is good (&gt;75%). When disabled, the card always appears at the bottom.</p>
-                </div>
-                <label className="flex items-center justify-between">
-                  <span className="text-sm text-slate-700 dark:text-slate-200">Enable Smart Card</span>
-                  <button
-                    onClick={() => setSmartNightCard(!smartNightCard)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      smartNightCard ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-600'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        smartNightCard ? 'translate-x-6' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                </label>
-              </div>
-              
               {/* Gear Guide */}
               <div className="rounded-2xl border border-gray-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/60 p-4 space-y-3">
                 <div>
                   <div className="text-sm font-semibold text-gray-700 dark:text-slate-200">Running Gear Guide</div>
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Learn about all the gear items - what they are, when to wear them, and pro tips.</p>
                 </div>
-                <Button variant="secondary" onClick={() => setShowGearGuide(true)} className="w-full" gender={gender}>
+                <Button variant="secondary" onClick={() => setShowGearGuide(true)} className="w-full">
                   <Info className="h-4 w-4 mr-2" />
                   Browse Gear Guide
                 </Button>
@@ -5116,11 +5214,11 @@ export default function App() {
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Manually craft weather scenarios for testing outfits without leaving the app.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button variant="secondary" onClick={() => setShowDebug(true)} gender={gender}>
+                  <Button variant="secondary" onClick={() => setShowDebug(true)}>
                     Open debug modal
                   </Button>
                   {debugActive && (
-                    <Button variant="ghost" onClick={clearDebugScenario} className="text-amber-600 hover:text-amber-700 dark:text-amber-300 dark:hover:text-amber-200" gender={gender}>
+                    <Button variant="ghost" onClick={clearDebugScenario} className="text-amber-600 hover:text-amber-700 dark:text-amber-300 dark:hover:text-amber-200">
                       Reload live weather
                     </Button>
                   )}
@@ -5276,175 +5374,81 @@ export default function App() {
               <div className="space-y-4 px-4 py-4 sm:space-y-6 sm:px-6 sm:py-6">
                 <div className="rounded-lg border border-sky-200/60 bg-sky-50/50 p-2.5 dark:border-sky-500/30 dark:bg-sky-500/10 sm:p-3">
                   <div className="mb-2 text-[10px] font-medium uppercase tracking-wide text-sky-700 dark:text-sky-300 sm:text-xs">Quick presets</div>
-                  <div className="space-y-2">
-                    <div>
-                      <div className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 sm:text-[10px]">Ideal Conditions</div>
-                      <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => setDebugInputs({ apparent: "50", temp: "52", wind: "3", humidity: "45", precipProb: "0", precipIn: "0", uvIndex: "4", cloudCover: "30", pressure: "1015", solarRadiation: "250", isDay: true, debugTimeHour: "" })}
-                          className="text-xs bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:border-emerald-700 dark:text-emerald-300"
-                        >
-                          ⭐ PR Weather (WBGT ~60°F)
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => setDebugInputs({ apparent: "45", temp: "46", wind: "5", humidity: "50", precipProb: "0", precipIn: "0", uvIndex: "3", cloudCover: "40", pressure: "1012", solarRadiation: "200", isDay: true, debugTimeHour: "" })}
-                          className="text-xs"
-                        >
-                          🏃 Marathon Ideal
-                        </Button>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400 sm:text-[10px]">Warm/Caution (WBGT 65-73°F)</div>
-                      <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => setDebugInputs({ apparent: "68", temp: "70", wind: "6", humidity: "65", precipProb: "0", precipIn: "0", uvIndex: "7", cloudCover: "25", pressure: "1010", solarRadiation: "650", isDay: true, debugTimeHour: "" })}
-                          className="text-xs"
-                        >
-                          ⚡ WBGT 68°F
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => setDebugInputs({ apparent: "70", temp: "72", wind: "4", humidity: "72", precipProb: "0", precipIn: "0", uvIndex: "8", cloudCover: "15", pressure: "1008", solarRadiation: "750", isDay: true, debugTimeHour: "" })}
-                          className="text-xs"
-                        >
-                          ⚡ WBGT 72°F (Yellow Flag)
-                        </Button>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-400 sm:text-[10px]">Hot/High Risk (WBGT 73-82°F)</div>
-                      <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => setDebugInputs({ apparent: "78", temp: "80", wind: "5", humidity: "75", precipProb: "0", precipIn: "0", uvIndex: "9", cloudCover: "10", pressure: "1005", solarRadiation: "850", isDay: true, debugTimeHour: "" })}
-                          className="text-xs"
-                        >
-                          🔥 WBGT 76°F (Red Flag)
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => setDebugInputs({ apparent: "82", temp: "84", wind: "3", humidity: "78", precipProb: "0", precipIn: "0", uvIndex: "10", cloudCover: "5", pressure: "1003", solarRadiation: "900", isDay: true, debugTimeHour: "" })}
-                          className="text-xs"
-                        >
-                          🔥 WBGT 81°F
-                        </Button>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-rose-900 dark:text-rose-300 sm:text-[10px]">Extreme Heat (WBGT {'>'}82°F)</div>
-                      <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => setDebugInputs({ apparent: "88", temp: "90", wind: "2", humidity: "80", precipProb: "0", precipIn: "0", uvIndex: "11", cloudCover: "0", pressure: "1000", solarRadiation: "950", isDay: true, debugTimeHour: "" })}
-                          className="text-xs bg-rose-50 border-rose-300 text-rose-800 hover:bg-rose-100 dark:bg-rose-950/50 dark:border-rose-700 dark:text-rose-300"
-                        >
-                          🚨 WBGT 86°F (Black Flag)
-                        </Button>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-blue-700 dark:text-blue-400 sm:text-[10px]">Cold Conditions</div>
-                      <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => setDebugInputs({ apparent: "35", temp: "38", wind: "8", humidity: "60", precipProb: "0", precipIn: "0", uvIndex: "2", cloudCover: "50", pressure: "1018", solarRadiation: "150", isDay: true, debugTimeHour: "" })}
-                          className="text-xs"
-                        >
-                          ❄️ Chilly 35°F
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => setDebugInputs({ apparent: "22", temp: "26", wind: "12", humidity: "55", precipProb: "0", precipIn: "0", uvIndex: "1", cloudCover: "60", pressure: "1022", solarRadiation: "100", isDay: true, debugTimeHour: "" })}
-                          className="text-xs"
-                        >
-                          ❄️ Cold 22°F
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => setDebugInputs({ apparent: "8", temp: "15", wind: "18", humidity: "50", precipProb: "0", precipIn: "0", uvIndex: "0", cloudCover: "70", pressure: "1025", solarRadiation: "0", isDay: true, debugTimeHour: "" })}
-                          className="text-xs"
-                        >
-                          🥶 Very Cold 8°F
-                        </Button>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 sm:text-[10px]">Precipitation</div>
-                      <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => setDebugInputs({ apparent: "33", temp: "35", wind: "8", humidity: "75", precipProb: "70", precipIn: "0.08", uvIndex: "0", cloudCover: "95", pressure: "1005", solarRadiation: "0", isDay: true, debugTimeHour: "" })}
-                          className="text-xs"
-                        >
-                          🧊 Freezing Rain
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => setDebugInputs({ apparent: "55", temp: "56", wind: "10", humidity: "85", precipProb: "80", precipIn: "0.15", uvIndex: "1", cloudCover: "100", pressure: "1002", solarRadiation: "50", isDay: true, debugTimeHour: "" })}
-                          className="text-xs"
-                        >
-                          🌧️ Heavy Rain
-                        </Button>
-                      </div>
-                    </div>
+                  <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => setDebugInputs({ apparent: "30", temp: "32", wind: "5", humidity: "65", precipProb: "0", precipIn: "0", uvIndex: "0", cloudCover: "20", isDay: true })}
+                      className="text-xs"
+                    >
+                      Cold 30°F
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => setDebugInputs({ apparent: "28", temp: "30", wind: "18", humidity: "60", precipProb: "0", precipIn: "0", uvIndex: "0", cloudCover: "40", isDay: true })}
+                      className="text-xs"
+                    >
+                      Cold + Windy
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => setDebugInputs({ apparent: "33", temp: "35", wind: "8", humidity: "75", precipProb: "70", precipIn: "0.08", uvIndex: "0", cloudCover: "95", isDay: true })}
+                      className="text-xs"
+                    >
+                      Freezing Rain
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => setDebugInputs({ apparent: "40", temp: "42", wind: "12", humidity: "55", precipProb: "0", precipIn: "0", uvIndex: "2", cloudCover: "30", isDay: true })}
+                      className="text-xs"
+                    >
+                      Cool 40°F
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => setDebugInputs({ apparent: "75", temp: "75", wind: "5", humidity: "80", precipProb: "0", precipIn: "0", uvIndex: "8", cloudCover: "50", isDay: true })}
+                      className="text-xs"
+                    >
+                      Hot + Humid
+                    </Button>
                   </div>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
                   <div className="space-y-1">
                     <label className="text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-xs">Real feel / apparent</label>
-                    <Input type="number" value={debugInputs.apparent || ""} onChange={handleDebugInput('apparent')} placeholder="e.g., 38" className="h-9 text-sm" />
+                    <Input type="number" value={debugInputs.apparent} onChange={handleDebugInput('apparent')} placeholder="e.g., 38" className="h-9 text-sm" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-xs">Actual temperature</label>
-                    <Input type="number" value={debugInputs.temp || ""} onChange={handleDebugInput('temp')} placeholder="e.g., 40" className="h-9 text-sm" />
+                    <Input type="number" value={debugInputs.temp} onChange={handleDebugInput('temp')} placeholder="e.g., 40" className="h-9 text-sm" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-xs">Wind speed (mph)</label>
-                    <Input type="number" value={debugInputs.wind || ""} onChange={handleDebugInput('wind')} placeholder="e.g., 12" className="h-9 text-sm" />
+                    <Input type="number" value={debugInputs.wind} onChange={handleDebugInput('wind')} placeholder="e.g., 12" className="h-9 text-sm" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-xs">Humidity (%)</label>
-                    <Input type="number" value={debugInputs.humidity || ""} onChange={handleDebugInput('humidity')} placeholder="e.g., 65" className="h-9 text-sm" />
+                    <Input type="number" value={debugInputs.humidity} onChange={handleDebugInput('humidity')} placeholder="e.g., 65" className="h-9 text-sm" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-xs">Precip probability (%)</label>
-                    <Input type="number" value={debugInputs.precipProb || ""} onChange={handleDebugInput('precipProb')} placeholder="e.g., 40" className="h-9 text-sm" />
+                    <Input type="number" value={debugInputs.precipProb} onChange={handleDebugInput('precipProb')} placeholder="e.g., 40" className="h-9 text-sm" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-xs">Precip amount (in)</label>
-                    <Input type="number" value={debugInputs.precipIn || ""} onChange={handleDebugInput('precipIn')} placeholder="e.g., 0.05" step="0.01" className="h-9 text-sm" />
+                    <Input type="number" value={debugInputs.precipIn} onChange={handleDebugInput('precipIn')} placeholder="e.g., 0.05" step="0.01" className="h-9 text-sm" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-xs">UV index</label>
-                    <Input type="number" value={debugInputs.uvIndex || ""} onChange={handleDebugInput('uvIndex')} placeholder="e.g., 3" className="h-9 text-sm" />
+                    <Input type="number" value={debugInputs.uvIndex} onChange={handleDebugInput('uvIndex')} placeholder="e.g., 3" className="h-9 text-sm" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-xs">Cloud cover (%)</label>
-                    <Input type="number" value={debugInputs.cloudCover || ""} onChange={handleDebugInput('cloudCover')} placeholder="e.g., 25" className="h-9 text-sm" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-xs">Pressure (hPa)</label>
-                    <Input type="number" value={debugInputs.pressure || ""} onChange={handleDebugInput('pressure')} placeholder="e.g., 1013" className="h-9 text-sm" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-xs">Solar radiation (W/m²)</label>
-                    <Input type="number" value={debugInputs.solarRadiation || ""} onChange={handleDebugInput('solarRadiation')} placeholder="e.g., 650" className="h-9 text-sm" />
+                    <Input type="number" value={debugInputs.cloudCover} onChange={handleDebugInput('cloudCover')} placeholder="e.g., 25" className="h-9 text-sm" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-xs">Daylight</label>
@@ -5506,12 +5510,12 @@ export default function App() {
                       type="number" 
                       min="0" 
                       max="23" 
-                      value={debugInputs.debugTimeHour || ""} 
+                      value={debugInputs.debugTimeHour} 
                       onChange={handleDebugInput('debugTimeHour')} 
                       placeholder="e.g., 17 for 5 PM" 
                       className="h-9 text-sm" 
                     />
-                    {debugInputs.debugTimeHour !== undefined && debugInputs.debugTimeHour !== "" && (
+                    {debugInputs.debugTimeHour !== "" && (
                       <div className="text-xs text-purple-600 dark:text-purple-400">
                         Testing as {parseInt(debugInputs.debugTimeHour) % 12 || 12}{parseInt(debugInputs.debugTimeHour) >= 12 ? ' PM' : ' AM'} - Card will appear {parseInt(debugInputs.debugTimeHour) >= 17 && parseInt(debugInputs.debugTimeHour) < 23 ? 'at TOP (evening)' : 'at BOTTOM (daytime)'}
                       </div>
@@ -5559,7 +5563,6 @@ export default function App() {
               exit="exit"
             >
             {/* Header with Score */}
-            
             <div className="sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm">
               <div className="flex items-center justify-between px-6 py-4">
                 <div className="flex items-center gap-4">
@@ -5568,8 +5571,8 @@ export default function App() {
                     <h2 className="text-xl font-bold text-gray-900 dark:text-slate-100">Performance Score Breakdown</h2>
                   </div>
                   <div className="flex items-baseline gap-2">
-                    <div className="text-4xl font-extrabold" style={displayedScoreProps?.tone?.textStyle}>
-                      {displayedScoreProps ? displayedScoreProps.score : '--'}
+                    <div className="text-4xl font-extrabold" style={derived?.tone?.textStyle}>
+                      {derived?.score || '--'}
                     </div>
                     <div className="text-sm font-medium text-slate-500 dark:text-slate-400">/100</div>
                   </div>
@@ -5589,9 +5592,9 @@ export default function App() {
                   <div className="relative h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-slate-800">
                     <motion.div 
                       className="h-full rounded-full"
-                      style={displayedScoreProps?.tone?.badgeStyle}
+                      style={derived.tone.badgeStyle}
                       initial={{ width: 0 }}
-                      animate={{ width: `${displayedScoreProps?.score ?? 0}%` }}
+                      animate={{ width: `${derived.score}%` }}
                       transition={{ duration: 1, ease: "easeOut" }}
                     />
                   </div>
@@ -5612,81 +5615,58 @@ export default function App() {
                 >
                   {/* Factor Cards Grid */}
                   <div>
-                    <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
-                      {derived.breakdown.useWBGT ? 'WBGT Calculation Factors' : 'UTCI Calculation Factors'}
-                    </h3>
+                    <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">Impact Factors</h3>
                     <motion.div 
                       className="grid grid-cols-1 md:grid-cols-2 gap-3"
                       variants={staggerContainer}
                     >
                       {derived.breakdown.parts.map((part) => {
+                        const percentage = Math.round((part.penalty / part.max) * 100);
+                        const impactLevel = percentage > 70 ? 'high' : percentage > 40 ? 'medium' : 'low';
                         const impactColors = {
                           high: 'border-rose-200/60 dark:border-rose-500/30 bg-rose-50/60 dark:bg-rose-500/10',
                           medium: 'border-amber-200/60 dark:border-amber-500/30 bg-amber-50/60 dark:bg-amber-500/10',
                           low: 'border-emerald-200/60 dark:border-emerald-500/30 bg-emerald-50/60 dark:bg-emerald-500/10'
                         };
-                        const impactBadgeColors = {
-                          high: 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-700',
-                          medium: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700',
-                          low: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
+                        const barColors = {
+                          high: 'bg-rose-500 dark:bg-rose-400',
+                          medium: 'bg-amber-500 dark:bg-amber-400',
+                          low: 'bg-emerald-500 dark:bg-emerald-400'
                         };
                         
                         return (
                           <motion.div 
                             key={part.key} 
-                            className={`rounded-xl border p-4 ${impactColors[part.impact]}`}
+                            className={`rounded-xl border p-4 ${impactColors[impactLevel]}`}
                             variants={listItemVariants}
                             whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
                           >
-                            <div className="flex items-start justify-between gap-3 mb-3">
+                            <div className="flex items-start justify-between gap-3 mb-2">
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-1">
                                   <span className="text-sm font-bold text-gray-900 dark:text-slate-100">{part.label}</span>
-                                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${impactBadgeColors[part.impact]}`}>
-                                    {part.impact} impact
+                                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                                    -{Math.round(part.penalty)} pts
                                   </span>
                                 </div>
-                                <div className="text-2xl font-extrabold text-gray-900 dark:text-slate-100">
-                                  {part.value}
+                                <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-slate-700">
+                                  <div 
+                                    className={`h-full rounded-full transition-all ${barColors[impactLevel]}`}
+                                    style={{ width: `${Math.min(percentage, 100)}%` }}
+                                  />
                                 </div>
-                                {part.dewPoint && (
-                                  <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                                    Dew point: {part.dewPoint}
-                                  </div>
-                                )}
                               </div>
                             </div>
-                            <p className="text-xs leading-relaxed text-gray-700 dark:text-slate-300">{part.description}</p>
+                            <p className="text-xs leading-relaxed text-gray-700 dark:text-slate-300 mb-2">{part.why}</p>
+                            {part.tip && (
+                              <div className="mt-2 rounded-lg bg-white/60 dark:bg-slate-800/60 p-2 text-xs text-gray-600 dark:text-slate-300">
+                                <span className="font-semibold">💡 Tip: </span>{part.tip}
+                              </div>
+                            )}
                           </motion.div>
                         );
                       })}
                     </motion.div>
-                    
-                    {/* Result Summary */}
-                    {derived.breakdown.result && (
-                      <motion.div 
-                        className="mt-4 rounded-xl border-2 border-violet-300 dark:border-violet-600 bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40 p-4"
-                        variants={listItemVariants}
-                      >
-                        <div className="flex items-center justify-between gap-4">
-                          <div>
-                            <div className="text-sm font-bold text-violet-900 dark:text-violet-200 mb-1">
-                              {derived.breakdown.result.label}
-                            </div>
-                            <div className="text-3xl font-extrabold text-violet-700 dark:text-violet-300">
-                              {derived.breakdown.result.value}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-xs text-violet-600 dark:text-violet-400 mb-1">Impact on Score</div>
-                            <div className="text-2xl font-bold text-violet-900 dark:text-violet-200">
-                              {derived.breakdown.result.description.match(/Score: (\d+)/)?.[1] || score}/100
-                            </div>
-                          </div>
-                        </div>
-                        <p className="mt-3 text-xs leading-relaxed text-violet-800 dark:text-violet-300">{derived.breakdown.result.description}</p>
-                      </motion.div>
-                    )}
                   </div>
 
                   {/* Strategy Section - REMOVED, now has its own dedicated card */}
@@ -5724,12 +5704,12 @@ export default function App() {
                   <div className="flex items-center gap-2">
                     <Clock className="h-5 w-5 text-sky-600 dark:text-sky-400" />
                     <h2 className="text-xl font-bold text-gray-900 dark:text-slate-100">
-                      {selectedHourData.timeLabel} Performance Score
+                      {selectedHourData.timeLabel} Run Score
                     </h2>
                   </div>
                   <div className="flex items-baseline gap-2">
-                    <div className="text-4xl font-extrabold" style={selectedHourDisplay?.tone?.textStyle}>
-                      {selectedHourDisplay ? selectedHourDisplay.score : (selectedHourData.score ? getDisplayedScore(selectedHourData.score, runnerBoldness) : '--')}
+                    <div className="text-4xl font-extrabold" style={selectedHourData.tone?.textStyle}>
+                      {selectedHourData.score || '--'}
                     </div>
                     <div className="text-sm font-medium text-slate-500 dark:text-slate-400">/100</div>
                   </div>
@@ -5745,12 +5725,12 @@ export default function App() {
               </div>
               {/* Score bar */}
               <div className="px-6 pb-4">
-                  <div className="relative h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-slate-800">
-                    <motion.div 
+                <div className="relative h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-slate-800">
+                  <motion.div 
                     className="h-full rounded-full"
-                    style={selectedHourDisplay?.tone?.badgeStyle}
+                    style={selectedHourData.tone.badgeStyle}
                     initial={{ width: 0 }}
-                    animate={{ width: `${selectedHourDisplay?.score ?? (selectedHourData.score ? getDisplayedScore(selectedHourData.score, runnerBoldness) : 0)}%` }}
+                    animate={{ width: `${selectedHourData.score}%` }}
                     transition={{ duration: 1, ease: "easeOut" }}
                   />
                 </div>
@@ -5793,81 +5773,61 @@ export default function App() {
 
                 {/* Factor Cards Grid */}
                 <div>
-                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
-                    {selectedHourData.breakdown.useWBGT ? 'WBGT Calculation Factors' : 'UTCI Calculation Factors'}
-                  </h3>
+                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">Impact Factors</h3>
                   <motion.div 
                     className="grid grid-cols-1 md:grid-cols-2 gap-3"
                     variants={staggerContainer}
                   >
                     {selectedHourData.breakdown.parts.map((part) => {
+                      const percentage = Math.round((part.penalty / part.max) * 100);
+                      const impactLevel = percentage > 70 ? 'high' : percentage > 40 ? 'medium' : 'low';
                       const impactColors = {
                         high: 'border-rose-200/60 dark:border-rose-500/30 bg-rose-50/60 dark:bg-rose-500/10',
                         medium: 'border-amber-200/60 dark:border-amber-500/30 bg-amber-50/60 dark:bg-amber-500/10',
                         low: 'border-emerald-200/60 dark:border-emerald-500/30 bg-emerald-50/60 dark:bg-emerald-500/10'
                       };
-                      const impactBadgeColors = {
-                        high: 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-700',
-                        medium: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700',
-                        low: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
+                      const barColors = {
+                        high: 'bg-rose-500 dark:bg-rose-400',
+                        medium: 'bg-amber-500 dark:bg-amber-400',
+                        low: 'bg-emerald-500 dark:bg-emerald-400'
                       };
                       
                       return (
                         <motion.div 
                           key={part.key} 
-                          className={`rounded-xl border p-4 ${impactColors[part.impact]}`}
+                          className={`rounded-xl border p-4 ${impactColors[impactLevel]}`}
                           variants={listItemVariants}
                           whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
                         >
-                          <div className="flex items-start justify-between gap-3 mb-3">
+                          <div className="flex items-start justify-between gap-3 mb-2">
                             <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-sm font-bold text-gray-900 dark:text-slate-100">{part.label}</span>
-                                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${impactBadgeColors[part.impact]}`}>
-                                  {part.impact} impact
+                              <div className="text-sm font-bold text-gray-900 dark:text-slate-100 mb-1">{part.label}</div>
+                              <div className="flex items-baseline gap-2">
+                                <span className="text-2xl font-extrabold text-gray-900 dark:text-slate-100">
+                                  -{Math.round(part.penalty)}
                                 </span>
+                                <span className="text-xs text-slate-500 dark:text-slate-400">points</span>
                               </div>
-                              <div className="text-2xl font-extrabold text-gray-900 dark:text-slate-100">
-                                {part.value}
-                              </div>
-                              {part.dewPoint && (
-                                <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                                  Dew point: {part.dewPoint}
-                                </div>
-                              )}
                             </div>
                           </div>
-                          <p className="text-xs leading-relaxed text-gray-700 dark:text-slate-300">{part.description}</p>
+                          <div className="mb-2">
+                            <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-slate-700">
+                              <div 
+                                className={`h-full rounded-full ${barColors[impactLevel]} transition-all duration-500`}
+                                style={{ width: `${percentage}%` }}
+                              />
+                            </div>
+                          </div>
+                          <p className="text-xs leading-relaxed text-gray-700 dark:text-slate-300 mb-2">{part.why}</p>
+                          {part.tip && (
+                            <div className="mt-2 rounded-lg bg-white/60 dark:bg-slate-800/60 p-2 text-xs text-gray-600 dark:text-slate-300">
+                              <span className="font-semibold">💡 Tip: </span>{part.tip}
+                            </div>
+                          )}
                         </motion.div>
                       );
                     })}
                   </motion.div>
-                  
-                  {/* Result Summary */}
-                  {selectedHourData.breakdown.result && (
-                    <motion.div 
-                      className="mt-4 rounded-xl border-2 border-violet-300 dark:border-violet-600 bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40 p-4"
-                      variants={listItemVariants}
-                    >
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <div className="text-sm font-bold text-violet-900 dark:text-violet-200 mb-1">
-                            {selectedHourData.breakdown.result.label}
-                          </div>
-                          <div className="text-3xl font-extrabold text-violet-700 dark:text-violet-300">
-                            {selectedHourData.breakdown.result.value}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xs text-violet-600 dark:text-violet-400 mb-1">Impact on Score</div>
-                          <div className="text-2xl font-bold text-violet-900 dark:text-violet-200">
-                            {selectedHourData.breakdown.result.description.match(/Score: (\d+)/)?.[1] || selectedHourDisplay?.score || '--'}/100
-                          </div>
-                        </div>
-                      </div>
-                      <p className="mt-3 text-xs leading-relaxed text-violet-800 dark:text-violet-300">{selectedHourData.breakdown.result.description}</p>
-                    </motion.div>
-                  )}
                 </div>
               </motion.div>
             </div>

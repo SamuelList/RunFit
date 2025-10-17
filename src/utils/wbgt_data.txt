@@ -1,0 +1,30 @@
+Cool/Neutral (50–65°F, Ideal): This is the ideal zone for running. In this range, the environment is cool enough to prevent overheating but not so cold as to impair muscle function. Multiple sources pinpoint roughly 50–60 °F WBGT as the optimal condition for endurance performance
+outsideonline.com
+runnersconnect.net
+. World Athletics classifies 50–64.4°F WBGT as “neutral” conditions for competition
+outsideonline.com
+. Runners can expect peak performance (fast times) and minimal health risks here. The body can regulate temperature easily, so the risk of either heat illness or cold stress is very low
+rrm.com
+. We tag this range “Ideal” because it combines maximal performance potential with minimal safety concerns.
+
+Warm (65–73°F, Caution): Once WBGT climbs into the mid-60s and 70s, conditions become warm enough to warrant caution. Performance starts to decline gradually – for example, above about 59–60°F WBGT, marathoners slow by ~0.3–0.4% per additional degree
+outsideonline.com
+. Heat loss is less efficient, so runners may feel hotter and tire sooner. Heat-related issues (cramps, dehydration) become more common, though serious heat illness is still infrequent in this range. Sports medicine guidelines (e.g. ACSM/NATA) designate this zone as a “Yellow Flag” condition, advising that at-risk runners (those unacclimatized or in heavy gear) should slow down and all participants should be alert for heat fatigue
+rrm.com
+. We label 65–73°F WBGT as “Warm – Caution” to reflect the need for moderate precautions: adjust pacing, take extra hydration breaks, and monitor how you feel.
+
+Hot (73–82°F, High Risk): In this range, heat stress is a serious concern. A WBGT in the high 70s°F can dramatically impair endurance performance – expect markedly slower race times and greater strain on the body’s cooling mechanisms. Medical officials consider WBGT ≥73°F as “extremely cautionary” for races
+outsideonline.com
+. Marathon organizers often issue Red Flag warnings here: they may advise participants to drop out if feeling ill, and ask older or less fit runners to reconsider racing
+rrm.com
+. The incidence of heat exhaustion and heat stroke spikes as WBGT nears the 80°F mark
+journals.lww.com
+. Thus, 73–82°F is tagged “High Risk – Hot”. Runners should only perform hard workouts or races under these conditions if well-trained, fully hydrated, and ideally heat-acclimatized; even then, they must listen to their bodies and be ready to slow or stop. Organizers typically increase medical support and cooling stations when WBGT enters this range.
+
+Extreme Heat (>82°F, Danger): WBGT above ~82 °F represents extremely dangerous running weather. According to American College of Sports Medicine guidelines, organized races should be canceled once WBGT exceeds 82°F due to the extreme risk of heat stroke and collapse
+outsideonline.com
+. At these levels, the body cannot dissipate heat fast enough; core temperature can soar to life-threatening levels in runners. Performance is not a primary concern anymore – simply surviving the run without heat injury becomes the issue. Even elite athletes struggle in such conditions, and medical tents see spikes in serious heat illness cases
+outsideonline.com
+. Notably, the U.S. military uses a “Black Flag” cutoff at WBGT ≈90°F, under which all training ceases because even fit, acclimated soldiers are at grave risk
+albany.marines.mil
+. Our chart marks >82°F WBGT as “Extreme Heat – Danger,” the worst-case scenario. Running in this environment is strongly discouraged; if it must be done, it should be for short durations with frequent stops, cooling interventions (ice baths, dousing with water), and expert supervision. The health hazards far outweigh any training benefit when WBGT is this high.

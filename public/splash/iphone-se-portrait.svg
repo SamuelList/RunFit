@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="750" height="1334" viewBox="0 0 750 1334" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f172a;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1e293b;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="750" height="1334" fill="url(#bg-gradient)"/>
+  
+  <!-- App Name -->
+  <text 
+    x="375" 
+    y="667" 
+    font-family="system-ui, -apple-system, sans-serif" 
+    font-size="75" 
+    font-weight="800" 
+    fill="#0ea5e9" 
+    text-anchor="middle" 
+    dominant-baseline="middle"
+    opacity="0.9"
+  >RunFit</text>
+  
+  <!-- Tagline -->
+  <text 
+    x="375" 
+    y="729" 
+    font-family="system-ui, -apple-system, sans-serif" 
+    font-size="25" 
+    font-weight="400" 
+    fill="#94a3b8" 
+    text-anchor="middle" 
+    dominant-baseline="middle"
+    opacity="0.7"
+  >Running Weather Companion</text>
+</svg>
