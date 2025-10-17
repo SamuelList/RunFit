@@ -172,11 +172,16 @@ export function computeRunningScore({ tempF, apparentF, humidity, windMph, preci
  * @returns {Object} Label with text and tone
  */
 export function scoreLabel(score) {
-  if (score >= 85) return { text: "Excellent", tone: "Great time to fly" };
-  if (score >= 65) return { text: "Good", tone: "Solid conditions" };
-  if (score >= 45) return { text: "Fair", tone: "Manageable with tweaks" };
-  if (score >= 25) return { text: "Challenging", tone: "Proceed with care" };
-  return { text: "Tough", tone: "Consider cross-training" };
+  if (score >= 90) return { text: "Ideal conditions", tone: "Perfect for peak performance" };
+  if (score >= 80) return { text: "Excellent", tone: "Great time to fly" };
+  if (score >= 70) return { text: "Great for running", tone: "Strong conditions" };
+  if (score >= 60) return { text: "Good", tone: "Solid conditions" };
+  if (score >= 50) return { text: "Decent conditions", tone: "Manageable" };
+  if (score >= 40) return { text: "Fair / Not ideal", tone: "Consider adjustments" };
+  if (score >= 30) return { text: "Not ideal", tone: "Challenging" };
+  if (score >= 20) return { text: "Tough conditions", tone: "Proceed with care" };
+  if (score >= 10) return { text: "Very tough", tone: "High risk" };
+  return { text: "Extreme / Unsafe", tone: "Consider skipping" };
 }
 
 /**

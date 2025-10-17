@@ -159,7 +159,15 @@ const CurrentConditions = ({
                   >
                     <div className="flex flex-col">
                       <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Score</span>
-                      <span className="text-3xl font-extrabold" style={displayedScoreProps?.tone?.textStyle}>{displayedScoreProps ? displayedScoreProps.score : '--'}</span>
+                      <span
+  className="text-3xl font-extrabold"
+  style={displayedScoreProps?.tone?.textStyle}
+>
+  {displayedScoreProps
+    ? Math.max(1, Math.round(displayedScoreProps.score / 10))
+    : '--'}
+</span>
+
                     </div>
                   </motion.button>
                   
