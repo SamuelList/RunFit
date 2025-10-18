@@ -212,9 +212,9 @@ export function calculateMRT({
   const mrtK = Math.pow(mrtK4, 0.25);
   let mrtF = kToF(mrtK);
   
-  // Sanity check: MRT shouldn't be more than 100°F warmer than air temp
+  // Sanity check: MRT shouldn't be more than 60°F warmer than air temp
   // or colder than air temp (unless in extreme cold with low radiation)
-  const maxEnhancement = 100; // °F
+  const maxEnhancement = 60; // °F
   const minEnhancement = -20; // °F (can be slightly cooler at night)
   
   if (mrtF - tempF > maxEnhancement) {

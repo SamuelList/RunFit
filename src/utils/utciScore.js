@@ -20,7 +20,7 @@ const IDEAL_UTCI = 47.0;
 // 1.0 = standard penalties
 // > 1.0 = harsher penalties (score drops faster)
 // < 1.0 = milder penalties (score drops slower)
-const PENALTY_MULTIPLIER = 2.5;
+const PENALTY_MULTIPLIER = 2;
 
 // UTCI ranges and their base penalties
 // These define how much the score decreases per degree away from ideal

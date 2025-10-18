@@ -89,15 +89,15 @@ function calculateUTCIPolynomial(ta, vp, va, mrt) {
     1.94544667e-6 * ta * ta * ta * va * va +
     1.14099531e-8 * ta * ta * ta * ta * va * va +
     0.158137256 * va * va * va +
-    -6.57263143e-5 * ta * va * va * va +
-    2.22697524e-7 * ta * ta * va * va * va +
-    -4.16117031e-8 * ta * ta * ta * va * va * va +
+    -6.57263143e-4 * ta * va * va * va +
+    2.22697524e-6 * ta * ta * va * va * va +
+    -4.16117031e-7 * ta * ta * ta * va * va * va +
     -0.0127762753 * va * va * va * va +
-    9.66891875e-6 * ta * va * va * va * va +
-    2.52785852e-9 * ta * ta * va * va * va * va +
+    9.66891875e-5 * ta * va * va * va * va +
+    2.52785852e-8 * ta * ta * va * va * va * va +
     4.56306672e-4 * va * va * va * va * va +
-    -1.74202546e-7 * ta * va * va * va * va * va +
-    -5.91491269e-6 * va * va * va * va * va * va +
+    -1.74202546e-6 * ta * va * va * va * va * va +
+    -5.91491269e-5 * va * va * va * va * va * va +
     0.398374029 * deltaT +
     1.83945314e-4 * ta * deltaT +
     -1.73754510e-4 * ta * ta * deltaT +
@@ -117,7 +117,7 @@ function calculateUTCIPolynomial(ta, vp, va, mrt) {
     1.35191328e-6 * ta * va * va * va * deltaT +
     -6.21531254e-9 * ta * ta * va * va * va * deltaT +
     -4.99410301e-6 * va * va * va * va * deltaT +
-    -1.89489258e-8 * ta * va * va * va * va * deltaT +
+    -1.89489258e-7 * ta * va * va * va * va * deltaT +
     8.15300114e-8 * va * va * va * va * va * deltaT +
     7.55043090e-4 * deltaT * deltaT +
     -5.65095215e-5 * ta * deltaT * deltaT +
@@ -529,12 +529,12 @@ export function calculateUTCI({
 
 /**
  * Get color classes for UTCI display based on stress level
- * @param {string} impact - Impact level from category
+ * @param {string} colorName - Color name from category (e.g., 'red', 'orange', 'green', 'blue')
  * @returns {Object} Tailwind color classes
  */
-export function getUTCIColorClasses(impact) {
+export function getUTCIColorClasses(colorName) {
   const colors = {
-    extreme: {
+    red: {
       border: 'border-red-300 dark:border-red-500/40',
       bg: 'bg-red-50/80 dark:bg-red-500/15',
       icon: 'bg-red-100 dark:bg-red-500/25',
@@ -542,15 +542,7 @@ export function getUTCIColorClasses(impact) {
       label: 'text-red-700 dark:text-red-400',
       value: 'text-red-900 dark:text-red-200'
     },
-    very_high: {
-      border: 'border-red-200 dark:border-red-500/30',
-      bg: 'bg-red-50/60 dark:bg-red-500/10',
-      icon: 'bg-red-100 dark:bg-red-500/20',
-      iconColor: 'text-red-600 dark:text-red-400',
-      label: 'text-red-600 dark:text-red-400',
-      value: 'text-red-800 dark:text-red-200'
-    },
-    high: {
+    orange: {
       border: 'border-orange-200 dark:border-orange-500/30',
       bg: 'bg-orange-50/60 dark:bg-orange-500/10',
       icon: 'bg-orange-100 dark:bg-orange-500/20',
@@ -558,7 +550,7 @@ export function getUTCIColorClasses(impact) {
       label: 'text-orange-600 dark:text-orange-400',
       value: 'text-orange-800 dark:text-orange-200'
     },
-    moderate: {
+    amber: {
       border: 'border-amber-200 dark:border-amber-500/30',
       bg: 'bg-amber-50/60 dark:bg-amber-500/10',
       icon: 'bg-amber-100 dark:bg-amber-500/20',
@@ -566,7 +558,7 @@ export function getUTCIColorClasses(impact) {
       label: 'text-amber-600 dark:text-amber-400',
       value: 'text-amber-800 dark:text-amber-200'
     },
-    minimal: {
+    green: {
       border: 'border-green-200 dark:border-green-500/30',
       bg: 'bg-green-50/60 dark:bg-green-500/10',
       icon: 'bg-green-100 dark:bg-green-500/20',
@@ -574,15 +566,40 @@ export function getUTCIColorClasses(impact) {
       label: 'text-green-600 dark:text-green-400',
       value: 'text-green-800 dark:text-green-200'
     },
-    low: {
+    sky: {
       border: 'border-sky-200 dark:border-sky-500/30',
       bg: 'bg-sky-50/60 dark:bg-sky-500/10',
       icon: 'bg-sky-100 dark:bg-sky-500/20',
       iconColor: 'text-sky-600 dark:text-sky-400',
       label: 'text-sky-600 dark:text-sky-400',
       value: 'text-sky-800 dark:text-sky-200'
+    },
+    blue: {
+      border: 'border-blue-200 dark:border-blue-500/30',
+      bg: 'bg-blue-50/60 dark:bg-blue-500/10',
+      icon: 'bg-blue-100 dark:bg-blue-500/20',
+      iconColor: 'text-blue-600 dark:text-blue-400',
+      label: 'text-blue-600 dark:text-blue-400',
+      value: 'text-blue-800 dark:text-blue-200'
+    },
+    indigo: {
+      border: 'border-indigo-200 dark:border-indigo-500/30',
+      bg: 'bg-indigo-50/60 dark:bg-indigo-500/10',
+      icon: 'bg-indigo-100 dark:bg-indigo-500/20',
+      iconColor: 'text-indigo-600 dark:text-indigo-400',
+      label: 'text-indigo-600 dark:text-indigo-400',
+      value: 'text-indigo-800 dark:text-indigo-200'
+    },
+    purple: {
+      border: 'border-purple-200 dark:border-purple-500/30',
+      bg: 'bg-purple-50/60 dark:bg-purple-500/10',
+      icon: 'bg-purple-100 dark:bg-purple-500/20',
+      iconColor: 'text-purple-600 dark:text-purple-400',
+      label: 'text-purple-600 dark:text-purple-400',
+      value: 'text-purple-800 dark:text-purple-200'
     }
   };
   
-  return colors[impact] || colors.minimal;
+  // Use 'green' (no stress) as the default fallback
+  return colors[colorName] || colors.green;
 }
