@@ -3,6 +3,10 @@ import { motion } from 'framer-motion';
 import { Calendar, Clock, UserRound } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui';
 import { GEAR_INFO, GEAR_ICONS } from '../../utils/gearData';
+import { calculateSolarElevation } from '../../utils/solar';
+import { calculateMRT } from '../../utils/mrt';
+import { calculateUTCI } from '../../utils/utci';
+import { getUTCIScoreBreakdown } from '../../utils/utciScore';
 
 /**
  * TomorrowOutfit Component
@@ -20,7 +24,6 @@ import { GEAR_INFO, GEAR_ICONS } from '../../utils/gearData';
  * @param {Function} props.setTomorrowCardOption - Callback to change outfit option
  * @param {Function} props.setShowTimePickerModal - Callback to show time picker
  * @param {Function} props.outfitFor - Function to calculate outfit recommendation
- * @param {Function} props.computeScoreBreakdown - Function to compute performance score
  * @param {Function} props.getDisplayedScore - Function to adjust score by boldness
  * @param {Function} props.scoreLabel - Function to get score label
  * @param {Function} props.scoreBasedTone - Function to get score styling
@@ -43,7 +46,6 @@ const TomorrowOutfit = ({
   setTomorrowCardOption,
   setShowTimePickerModal,
   outfitFor,
-  computeScoreBreakdown,
   getDisplayedScore,
   scoreLabel,
   scoreBasedTone,
@@ -115,24 +117,47 @@ const TomorrowOutfit = ({
       tempSensitivity
     );
     
-    const breakdown = computeScoreBreakdown(
-      {
-        tempF: avgTemp,
-        apparentF: avgApparent,
-        humidity: avgHumidity,
-        windMph: avgWind,
-        precipProb: avgPrecipProb,
-        precipIn: avgPrecip,
-        uvIndex: avgUv,
-        cloudCover: wx.cloud || 50,
-        pressure: avgPressure,
-        solarRadiation: avgSolarRadiation,
-      },
-      tomorrowCardRunType === 'workout',
-      coldHands,
-      outfit.handsLevel,
-      tomorrowCardRunType === 'longRun'
-    );
+    // Calculate UTCI-based score for tomorrow's conditions
+    // (targetTime already declared above)
+    
+    // Calculate solar elevation for tomorrow's run time
+    const solarElevation = wx.place?.lat != null && wx.place?.lon != null
+      ? calculateSolarElevation({
+          latitude: wx.place.lat,
+          longitude: wx.place.lon,
+          timestamp: targetTime,
+        })
+      : 0;
+    
+    // Calculate Mean Radiant Temperature
+    const mrtData = calculateMRT({
+      tempF: avgTemp,
+      humidity: avgHumidity,
+      solarRadiation: avgSolarRadiation,
+      solarElevation: solarElevation ?? 0,
+      cloudCover: wx.cloud || 50,
+      windMph: avgWind
+    });
+    
+    // Calculate UTCI
+    const utciData = calculateUTCI({
+      tempF: avgTemp,
+      humidity: avgHumidity,
+      windMph: avgWind,
+      mrt: mrtData?.mrt || avgTemp,
+      precipRate: avgPrecip || 0
+    });
+    
+    // Get UTCI-based score breakdown
+    const breakdown = utciData ? getUTCIScoreBreakdown(utciData.utci, avgPrecip || 0) : {
+      score: 50,
+      label: 'Unknown',
+      useWBGT: false,
+      parts: [],
+      result: null,
+      total: 100,
+      dominantKeys: []
+    };
     
     const score = breakdown.score;
     const displayScore = getDisplayedScore(score, runnerBoldness);
@@ -151,7 +176,7 @@ const TomorrowOutfit = ({
       displayTemp,
       items
     };
-  }, [wx, tomorrowRunHour, tomorrowCardRunType, tomorrowCardOption, outfitFor, computeScoreBreakdown, getDisplayedScore, scoreLabel, scoreBasedTone, coldHands, gender, runnerBoldness, tempSensitivity, unit, variant]);
+  }, [wx, tomorrowRunHour, tomorrowCardRunType, tomorrowCardOption, outfitFor, getDisplayedScore, scoreLabel, scoreBasedTone, coldHands, gender, runnerBoldness, tempSensitivity, unit, variant]);
 
   if (!tomorrowData) return null;
 

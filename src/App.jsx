@@ -10,7 +10,8 @@ import { calculateUTCI, getUTCICategory, getUTCIColorClasses } from "./utils/utc
 import { GEAR_INFO, GEAR_ICONS } from "./utils/gearData";
 import { APP_VERSION, DEFAULT_PLACE, DEFAULT_SETTINGS, FORECAST_ALERT_META, nominatimHeaders } from "./utils/constants";
 import { clamp, round1, msToMph, mmToInches, cToF, fToC, computeFeelsLike, blendWeather, getCurrentHourIndex } from "./utils/helpers";
-import { computeScoreBreakdown, calculateRoadConditions, makeApproachTips, calculateWBGT } from "./utils/runScore";
+import { calculateRoadConditions, makeApproachTips } from "./utils/runScore";
+import { getUTCIScoreBreakdown } from "./utils/utciScore";
 
 // UI Components
 import { Card, CardHeader, CardTitle, CardContent, Button, Input, Label, Switch, SegmentedControl } from "./components/ui";
@@ -2091,16 +2092,6 @@ export default function App() {
       solarRadiation: avgSolar,
     };
   }
-  
-  const breakdown = computeScoreBreakdown(
-    scoreWeatherData,
-    workout,
-    coldHands,
-    recs.handsLevel,
-    longRun
-  );
-  
-  const score = breakdown.score;
 
   const displayApparent = Number.isFinite(usedApparentF)
     ? (unit === "F" ? usedApparentF : ((usedApparentF - 32) * 5) / 9)
@@ -2109,19 +2100,6 @@ export default function App() {
   const dewPointDisplay = Number.isFinite(dpF)
     ? (unit === "F" ? dpF : (dpF - 32) * 5 / 9)
     : null;
-  
-  // WBGT comes from breakdown (comprehensive calculation when pressure/solar available)
-  const wbgtF = breakdown?.wbF;
-  
-  // Only show WBGT when feels-like temp is >= 50°F (heat stress becomes relevant)
-  // Below 50°F, use feels-like temperature for cold assessment
-  const useWBGT = Number.isFinite(wbgtF) && usedApparentF >= 50;
-  
-  const effectiveTempF = useWBGT ? wbgtF : usedApparentF;
-  const effectiveTempDisplay = Number.isFinite(effectiveTempF)
-    ? (unit === "F" ? effectiveTempF : (effectiveTempF - 32) * 5 / 9)
-    : null;
-  const effectiveTempLabel = useWBGT ? "WBGT" : "Feels Like";
 
   const roadConditions = calculateRoadConditions({
     tempF: tempFWx,
@@ -2129,26 +2107,6 @@ export default function App() {
     precipProb: wx.precipProb,
     precip: wx.precip,
     cloudCover: wx.cloud || 0,
-  });
-
-  const approach = makeApproachTips({
-    score,
-    parts: breakdown.parts,
-    dpF,
-    apparentF: usedApparentF,
-    tempF: tempFWx,
-    humidity: wx.humidity,
-    windMph: wx.wind,
-    precipProb: wx.precipProb,
-    workout,
-    longRun,
-    tempChange: longRun && wx.hourlyForecast?.length > 1 
-      ? Math.max(0, ...(wx.hourlyForecast.slice(1, 3).map(h => h.apparent - usedApparentF).filter(v => !isNaN(v)))) 
-      : 0,
-    willRain: longRun && wx.hourlyForecast?.some((h, i) => i > 0 && i <= 2 && (h.precipProb > 40 || h.precip > 0.02)),
-    roadConditions,
-    runnerBoldness,
-    cloudCover: wx.cloud || 50,
   });
 
   const parseTimes = (values) =>
@@ -2402,23 +2360,41 @@ export default function App() {
         tempSensitivity
       );
 
-      const slotBreakdown = computeScoreBreakdown(
-        {
-          tempF: slotTempF,
-          apparentF: slotApparentF,
-          humidity: slotHumidity,
-          windMph: slotWind,
-          precipProb: slotPrecipProb,
-          precipIn: slotPrecip,
-          uvIndex: slotUv,
-          cloudCover: slotCloud,
-          pressure: typeof slot.pressure === "number" ? slot.pressure : wx.pressure,
-          solarRadiation: typeof slot.solarRadiation === "number" ? slot.solarRadiation : 0,
-        },
-        workout,
-        coldHands,
-        slotOutfit.handsLevel
-      );
+      // Calculate UTCI for this forecast slot
+      const slotSolarElevation = place?.lat != null && place?.lon != null
+        ? calculateSolarElevation({
+            latitude: place.lat,
+            longitude: place.lon,
+            timestamp: slot.time,
+          })
+        : 0;
+
+      const slotMrtData = calculateMRT({
+        tempF: slotTempF,
+        humidity: slotHumidity || 50,
+        solarRadiation: typeof slot.solarRadiation === "number" ? slot.solarRadiation : 0,
+        solarElevation: slotSolarElevation ?? 0,
+        cloudCover: slotCloud || 50,
+        windMph: slotWind || 0
+      });
+
+      const slotUtciData = calculateUTCI({
+        tempF: slotTempF,
+        humidity: slotHumidity || 50,
+        windMph: slotWind || 0,
+        mrt: slotMrtData?.mrt || slotTempF,
+        precipRate: slotPrecip || 0
+      });
+
+      const slotBreakdown = slotUtciData ? getUTCIScoreBreakdown(slotUtciData.utci, slotPrecip || 0) : {
+        score: 50,
+        label: 'Unknown',
+        useWBGT: false,
+        parts: [],
+        result: null,
+        total: 100,
+        dominantKeys: []
+      };
 
       const slotScore = slotBreakdown.score;
       const slotLabel = scoreLabel(slotScore);
@@ -2473,10 +2449,57 @@ export default function App() {
       };
     })
     .filter(Boolean);
-
+  
+  // Calculate solar elevation angle
+  const solarElevation = place?.lat != null && place?.lon != null
+    ? calculateSolarElevation({
+        latitude: place.lat,
+        longitude: place.lon,
+        timestamp: now,
+      })
+    : null;
+  
+  // Calculate Mean Radiant Temperature (MRT)
+  const mrtData = calculateMRT({
+    tempF: tempFWx,
+    humidity: wx.humidity,
+    solarRadiation: wx.solarRadiation || 0,
+    solarElevation: solarElevation ?? 0, // Use nullish coalescing to allow negative values
+    cloudCover: wx.cloud || 50,
+    windMph: wx.wind
+  });
+  
+  const mrtCategory = mrtData ? getMRTCategory(mrtData.mrt, tempFWx) : null;
+  const effectiveSolarTemp = mrtData ? calculateEffectiveSolarTemp(tempFWx, mrtData.mrt, wx.wind) : null;
+  
+  // Calculate Universal Thermal Climate Index (UTCI)
+  const utciData = calculateUTCI({
+    tempF: tempFWx,
+    humidity: wx.humidity,
+    windMph: wx.wind,
+    mrt: mrtData?.mrt || tempFWx,
+    precipRate: wx.precip || 0 // inches per hour
+  });
+  
+  const utciCategory = utciData ? getUTCICategory(utciData.utci) : null;
+  
+  // Calculate score based on UTCI
+  const breakdown = utciData ? getUTCIScoreBreakdown(utciData.utci, wx.precip || 0) : {
+    score: 50,
+    label: 'Unknown',
+    useWBGT: false,
+    parts: [],
+    result: null,
+    total: 100,
+    dominantKeys: []
+  };
+  
+  const score = breakdown.score;
+  
+  // Calculate tone based on score
   const tone = scoreBasedTone(getDisplayedScore(score, runnerBoldness));
   
-  // Find best run time for today and tomorrow within user-defined hours
+  // Find best run time for today and tomorrow within user-defined hours (after score is available)
   const findBestRunTimes = () => {
     if (!wx?.hourlyForecast || wx.hourlyForecast.length === 0) return { today: null, tomorrow: null };
     
@@ -2519,64 +2542,61 @@ export default function App() {
       if (hour < runHoursStart || hour >= runHoursEnd) continue;
       
       // Calculate score for this slot
-      const slotTemp = typeof slot.temperature === 'number' ? slot.temperature : slot.apparent;
-      const slotApparentF = toF(slot.apparent);
-      const slotHumidity = typeof slot.humidity === 'number' ? slot.humidity : wx.humidity;
-      const slotWind = typeof slot.wind === 'number' ? slot.wind : wx.wind;
-      const slotPrecipProb = typeof slot.precipProb === 'number' ? slot.precipProb : 0;
-      const slotPrecip = typeof slot.precip === 'number' ? slot.precip : 0;
-      const slotUv = typeof slot.uv === 'number' ? slot.uv : 0;
+      const slotTempF = slot.apparent;
+      const slotHumidity = slot.humidity;
+      const slotWind = slot.wind;
+      const slotPrecip = slot.precip || 0;
+      const slotCloud = slot.cloud || 50;
       
-      if (!Number.isFinite(slotApparentF)) continue;
+      const slotSolarElevation = place?.lat != null && place?.lon != null
+        ? calculateSolarElevation({
+            latitude: place.lat,
+            longitude: place.lon,
+            timestamp: slotTime,
+          })
+        : 0;
       
-      const slotOutfit = outfitFor(
-        {
-          apparentF: slotApparentF,
-          humidity: slotHumidity,
-          windMph: slotWind,
-          precipProb: slotPrecipProb,
-          precipIn: slotPrecip,
-          uvIndex: slotUv,
-          isDay: true,
-        },
-        workout,
-        coldHands,
-        gender,
-        false,
-        [],
-        tempSensitivity
-      );
+      const slotMrtData = calculateMRT({
+        tempF: slotTempF,
+        humidity: slotHumidity || 50,
+        solarRadiation: typeof slot.solarRadiation === "number" ? slot.solarRadiation : 0,
+        solarElevation: slotSolarElevation ?? 0,
+        cloudCover: slotCloud || 50,
+        windMph: slotWind || 0
+      });
       
-      const slotBreakdown = computeScoreBreakdown(
-        {
-          tempF: toF(slotTemp),
-          apparentF: slotApparentF,
-          humidity: slotHumidity,
-          windMph: slotWind,
-          precipProb: slotPrecipProb,
-          precipIn: slotPrecip,
-          uvIndex: slotUv,
-          cloudCover: wx.cloud || 50,
-          pressure: slot.pressure || wx.pressure,
-          solarRadiation: slot.solarRadiation || 0,
-        },
-        workout,
-        coldHands,
-        slotOutfit.handsLevel
-      );
+      const slotUtciData = calculateUTCI({
+        tempF: slotTempF,
+        humidity: slotHumidity || 50,
+        windMph: slotWind || 0,
+        mrt: slotMrtData?.mrt || slotTempF,
+        precipRate: slotPrecip || 0
+      });
+      
+      const slotBreakdown = slotUtciData ? getUTCIScoreBreakdown(slotUtciData.utci, slotPrecip || 0) : {
+        score: 50,
+        label: 'Unknown',
+        useWBGT: false,
+        parts: [],
+        result: null,
+        total: 100,
+        dominantKeys: []
+      };
       
       const slotScore = slotBreakdown.score;
+      
       const candidate = {
         time: slotTime,
         score: slotScore,
-        apparentF: slotApparentF,
+        apparentF: slotTempF,
         wind: slotWind,
-        precipProb: slotPrecipProb,
-        uv: slotUv,
+        precipProb: slot.precipProb,
+        uv: slot.uv,
+        isNow: false,
       };
       
-      // Categorize by day
-      if (slotTime >= todayStart && slotTime < tomorrowStart && slotTime >= now) {
+      // Categorize by today vs tomorrow
+      if (slotTime >= todayStart && slotTime < tomorrowStart) {
         todayCandidates.push(candidate);
       } else if (slotTime >= tomorrowStart && slotTime < tomorrowEnd) {
         tomorrowCandidates.push(candidate);
@@ -2602,38 +2622,26 @@ export default function App() {
   
   const bestRunTimes = findBestRunTimes();
   
-  // Calculate solar elevation angle
-  const solarElevation = place?.lat != null && place?.lon != null
-    ? calculateSolarElevation({
-        latitude: place.lat,
-        longitude: place.lon,
-        timestamp: now,
-      })
-    : null;
-  
-  // Calculate Mean Radiant Temperature (MRT)
-  const mrtData = calculateMRT({
-    tempF: tempFWx,
-    humidity: wx.humidity,
-    solarRadiation: wx.solarRadiation || 0,
-    solarElevation: solarElevation ?? 0, // Use nullish coalescing to allow negative values
-    cloudCover: wx.cloud || 50,
-    windMph: wx.wind
-  });
-  
-  const mrtCategory = mrtData ? getMRTCategory(mrtData.mrt, tempFWx) : null;
-  const effectiveSolarTemp = mrtData ? calculateEffectiveSolarTemp(tempFWx, mrtData.mrt, wx.wind) : null;
-  
-  // Calculate Universal Thermal Climate Index (UTCI)
-  const utciData = calculateUTCI({
+  // Calculate approach tips (after breakdown is available)
+  const approach = makeApproachTips({
+    score,
+    parts: breakdown.parts,
+    dpF,
+    apparentF: usedApparentF,
     tempF: tempFWx,
     humidity: wx.humidity,
     windMph: wx.wind,
-    mrt: mrtData?.mrt || tempFWx,
-    precipRate: wx.precip || 0 // inches per hour
+    precipProb: wx.precipProb,
+    workout,
+    longRun,
+    tempChange: longRun && wx.hourlyForecast?.length > 1 
+      ? Math.max(0, ...(wx.hourlyForecast.slice(1, 3).map(h => h.apparent - usedApparentF).filter(v => !isNaN(v)))) 
+      : 0,
+    willRain: longRun && wx.hourlyForecast?.some((h, i) => i > 0 && i <= 2 && (h.precipProb > 40 || h.precip > 0.02)),
+    roadConditions,
+    runnerBoldness,
+    cloudCover: wx.cloud || 50,
   });
-  
-  const utciCategory = utciData ? getUTCICategory(utciData.utci) : null;
   
   return {
     apparentF: apparentFWx,
@@ -2645,8 +2653,6 @@ export default function App() {
     recs,
     displayApparent,
     dewPointDisplay,
-    effectiveTempDisplay,
-    effectiveTempLabel,
     manualOn,
     hands: recs.handsLevel,
     handsText: handsLabel(recs.handsLevel),
@@ -2973,7 +2979,6 @@ export default function App() {
             setTomorrowCardOption={setTomorrowCardOption}
             setShowTimePickerModal={setShowTimePickerModal}
             outfitFor={outfitFor}
-            computeScoreBreakdown={computeScoreBreakdown}
             getDisplayedScore={getDisplayedScore}
             scoreLabel={scoreLabel}
             scoreBasedTone={scoreBasedTone}
@@ -3260,7 +3265,6 @@ export default function App() {
             setTomorrowCardOption={setTomorrowCardOption}
             setShowTimePickerModal={setShowTimePickerModal}
             outfitFor={outfitFor}
-            computeScoreBreakdown={computeScoreBreakdown}
             getDisplayedScore={getDisplayedScore}
             scoreLabel={scoreLabel}
             scoreBasedTone={scoreBasedTone}
