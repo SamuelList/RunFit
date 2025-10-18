@@ -4,7 +4,7 @@ import { MapPin, Thermometer, Droplets, Wind, CloudRain, Sun, Hand, Info, Flame,
 import { RadialBarChart, RadialBar, PolarAngleAxis } from "recharts";
 
 // Utils
-import { computeSunEvents } from "./utils/solar";
+import { computeSunEvents, calculateSolarElevation } from "./utils/solar";
 import { GEAR_INFO, GEAR_ICONS } from "./utils/gearData";
 import { APP_VERSION, DEFAULT_PLACE, DEFAULT_SETTINGS, FORECAST_ALERT_META, nominatimHeaders } from "./utils/constants";
 import { clamp, round1, msToMph, mmToInches, cToF, fToC, computeFeelsLike, blendWeather, getCurrentHourIndex } from "./utils/helpers";
@@ -33,6 +33,9 @@ import { HourBreakdownModal } from "./components/modals";
 
 // Tomorrow Components
 import { TomorrowOutfit, TimeSelector } from "./components/tomorrow";
+
+// Performance Components
+import { PerformanceScore } from "./components/performance";
 
 // iOS-specific styles for safe area and native feel
 if (typeof document !== 'undefined') {
@@ -2463,6 +2466,15 @@ export default function App() {
   
   const bestRunTimes = findBestRunTimes();
   
+  // Calculate solar elevation angle
+  const solarElevation = place?.lat != null && place?.lon != null
+    ? calculateSolarElevation({
+        latitude: place.lat,
+        longitude: place.lon,
+        timestamp: now,
+      })
+    : null;
+  
   return {
     apparentF: apparentFWx,
     tempF: tempFWx,
@@ -2488,6 +2500,7 @@ export default function App() {
     forecast,
     moonPhase,
     bestRunTimes,
+    solarElevation, // Solar angle above horizon in degrees
     // Hour click handler for forecast
     onHourClick: (slot) => {
       setSelectedHourData(slot);
@@ -2809,6 +2822,15 @@ export default function App() {
 
         {/* Main Weather Card - Run Controls */}
         <CurrentConditions
+          place={place}
+          loading={loading}
+          formattedPlaceName={formattedPlaceName}
+          debugActive={debugActive}
+          derived={derived}
+          condition={condition}
+          gender={gender}
+          displayedScoreProps={displayedScoreProps}
+          error={error}
           runType={runType}
           setShowInsights={setShowInsights}
           setRunType={setRunType}
@@ -3032,203 +3054,17 @@ export default function App() {
             </motion.div>
 
       {/* Center Column */}
-  <motion.div variants={cardVariants}>
-  <Card className="relative lg:col-start-2">
-  <CardHeader className="pb-3">
-    <div className="flex items-start justify-between">
-      <div>
-        <CardTitle className="text-xl font-bold">Performance Score</CardTitle>
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          {displayedScoreProps ? displayedScoreProps.label.tone : "Loading conditions..."}
-        </p>
-      </div>
-      {displayedScoreProps && (
-        <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium`} style={displayedScoreProps.tone.badgeStyle}>
-          {displayedScoreProps.label.text}
-        </span>
-      )}
-    </div>
-  </CardHeader>
-  <CardContent className="space-y-4">
-    {/* Score Gauge */}
-    <div className="relative flex items-center justify-center">
-      <RadialBarChart width={240} height={240} cx={120} cy={120} innerRadius={80} outerRadius={105} barSize={20} data={gaugeData} startAngle={225} endAngle={-45}>
-        <PolarAngleAxis type="number" domain={[0, 100]} angleAxisId={0} tick={false} />
-        <RadialBar minAngle={15} background dataKey="value" clockWise cornerRadius={20} />
-      </RadialBarChart>
-      <div className="pointer-events-none absolute text-center">
-        <div className="text-6xl font-extrabold" style={displayedScoreProps?.tone?.textStyle}>
-          {displayedScoreProps ? displayedScoreProps.score : "--"}
-        </div>
-        <div className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">out of 100</div>
-      </div>
-    </div>
-
-    {/* View Insights Button */}
-    <motion.button
-      onClick={() => setShowInsights(true)}
-      className="w-full rounded-xl border border-sky-200 dark:border-sky-500/30 bg-sky-50/60 dark:bg-sky-500/10 px-4 py-3 text-sm font-medium text-sky-700 dark:text-sky-300 hover:bg-sky-100/80 dark:hover:bg-sky-500/20 transition-colors flex items-center justify-center gap-2"
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-    >
-      <Info className="h-4 w-4" />
-      View Score Insights
-    </motion.button>
-
-    {/* Weather Details Grid */}
-    <motion.div 
-      className="grid grid-cols-2 gap-2.5"
-      variants={staggerContainer}
-      initial="initial"
-      animate="animate"
-    >
-      <motion.div 
-        className="flex items-center gap-2.5 rounded-xl border border-gray-200/40 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 p-3"
-        variants={listItemVariants}
-        whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
-      >
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100/80 dark:bg-sky-500/20">
-          <Thermometer className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-xs text-gray-600 dark:text-slate-400">Temp / Feels</div>
-          <div className="text-sm font-bold text-gray-700 dark:text-slate-100">
-            {wx && Number.isFinite(derived?.tempDisplay) && Number.isFinite(derived?.displayApparent) 
-              ? `${Math.round(derived.tempDisplay)}° / ${Math.round(derived.displayApparent)}°${unit}${derived.manualOn ? ' *' : ''}` 
-              : "--"}
-          </div>
-        </div>
-      </motion.div>
-      <motion.div 
-        className="flex items-center gap-2.5 rounded-xl border border-gray-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 p-3"
-        variants={listItemVariants}
-        whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
-      >
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-500/20">
-          <Droplets className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-xs text-gray-500 dark:text-slate-400">Dew Point</div>
-          <div className="text-sm font-bold text-gray-800 dark:text-slate-100">
-            {wx && Number.isFinite(derived?.dewPointDisplay) ? `${round1(derived.dewPointDisplay)}°${unit}` : "--"}
-          </div>
-        </div>
-      </motion.div>
-      {derived?.effectiveTempLabel === "WBGT" && (
-        <motion.div 
-          className="flex items-center gap-2.5 rounded-xl border border-gray-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 p-3"
-          variants={listItemVariants}
-          whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
-        >
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-500/20">
-            <Thermometer className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-xs text-gray-500 dark:text-slate-400">WBGT</div>
-            <div className="text-sm font-bold text-gray-800 dark:text-slate-100">
-              {wx && Number.isFinite(derived?.effectiveTempDisplay) ? `${round1(derived.effectiveTempDisplay)}°${unit}` : "--"}
-            </div>
-          </div>
-        </motion.div>
-      )}
-      <motion.div 
-        className="flex items-center gap-2.5 rounded-xl border border-gray-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 p-3"
-        variants={listItemVariants}
-        whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
-      >
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-500/20">
-          <Droplets className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-xs text-gray-500 dark:text-slate-400">Humidity</div>
-          <div className="text-sm font-bold text-gray-800 dark:text-slate-100">
-            {wx ? `${round1(wx.humidity)}%` : "--"}
-          </div>
-        </div>
-      </motion.div>
-      <motion.div 
-        className="flex items-center gap-2.5 rounded-xl border border-gray-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 p-3"
-        variants={listItemVariants}
-        whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
-      >
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-500/20">
-          <Wind className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-xs text-gray-500 dark:text-slate-400">Wind</div>
-          <div className="text-sm font-bold text-gray-800 dark:text-slate-100">
-            {wx ? `${round1(wx.wind)} mph` : "--"}
-          </div>
-        </div>
-      </motion.div>
-      <motion.div 
-        className="flex items-center gap-2.5 rounded-xl border border-gray-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 p-3"
-        variants={listItemVariants}
-        whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
-      >
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-500/20">
-          <CloudRain className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-xs text-gray-500 dark:text-slate-400">Precip</div>
-          <div className="text-sm font-bold text-gray-800 dark:text-slate-100">
-            {wx ? `${round1(wx.precipProb)}%` : "--"}
-          </div>
-        </div>
-      </motion.div>
-      <motion.div 
-        className="flex items-center gap-2.5 rounded-xl border border-gray-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 p-3"
-        variants={listItemVariants}
-        whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
-      >
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-500/20">
-          <Sun className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-xs text-gray-500 dark:text-slate-400">UV Index</div>
-          <div className="text-sm font-bold text-gray-800 dark:text-slate-100">
-            {wx ? round1(wx.uv) : "--"}
-          </div>
-        </div>
-      </motion.div>
-      <motion.div 
-        className="flex items-center gap-2.5 rounded-xl border border-gray-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 p-3"
-        variants={listItemVariants}
-        whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
-      >
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-500/20">
-          <Cloud className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-xs text-gray-500 dark:text-slate-400">Cloud Cover</div>
-          <div className="text-sm font-bold text-gray-800 dark:text-slate-100">
-            {wx ? `${round1(wx.cloud)}%` : "--"}
-          </div>
-        </div>
-      </motion.div>
-      {wx && (wx.humidity > 90 && Math.abs(wx.temperature - (derived?.dewPointDisplay || 0)) < 3) && (
-        <motion.div 
-          className="flex items-center gap-2.5 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50/60 dark:bg-amber-500/10 p-3"
-          variants={listItemVariants}
-          whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
-        >
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-500/20">
-            <CloudFog className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-xs text-amber-600 dark:text-amber-400">Fog Detected</div>
-            <div className="text-sm font-bold text-amber-800 dark:text-amber-200">
-              Low Visibility
-            </div>
-          </div>
-        </motion.div>
-      )}
-    </motion.div>
-
-    {/* Bottom-line recommendation - REMOVED, now in separate card */}
-  </CardContent>
-</Card>
-  </motion.div>
+      <PerformanceScore
+        displayedScoreProps={displayedScoreProps}
+        gaugeData={gaugeData}
+        setShowInsights={setShowInsights}
+        wx={wx}
+        derived={derived}
+        unit={unit}
+        staggerContainer={staggerContainer}
+        listItemVariants={listItemVariants}
+        cardVariants={cardVariants}
+      />
             
         <motion.div variants={cardVariants}>
           <ForecastCard derived={derived} getDisplayedScore={getDisplayedScore} runnerBoldness={runnerBoldness} className="lg:col-start-3 hidden lg:block" />

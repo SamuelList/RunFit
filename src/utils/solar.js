@@ -200,3 +200,63 @@ export function computeSunEvents({ timestamp = Date.now(), latitude, longitude, 
 export function nextEventAfter(times = [], now = Date.now()) {
   return times.find((t) => t > now) ?? null;
 }
+
+/**
+ * Calculate the current solar elevation angle (altitude) above the horizon
+ * @param {number} latitude - Latitude in degrees
+ * @param {number} longitude - Longitude in degrees
+ * @param {number} timestamp - Time in milliseconds since epoch (default: now)
+ * @returns {number} Solar elevation angle in degrees (-90 to +90). Negative values mean sun is below horizon.
+ */
+export function calculateSolarElevation({ latitude, longitude, timestamp = Date.now() }) {
+  if (typeof latitude !== "number" || typeof longitude !== "number") {
+    return null;
+  }
+
+  const date = new Date(timestamp);
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth() + 1;
+  const day = date.getUTCDate();
+  const hours = date.getUTCHours();
+  const minutes = date.getUTCMinutes();
+  const seconds = date.getUTCSeconds();
+
+  // Calculate Julian day
+  const jd = julianDay(year, month, day);
+  
+  // Time in decimal hours (UTC)
+  const utcTime = hours + minutes / 60 + seconds / 3600;
+  
+  // Julian centuries since J2000.0
+  const T = (jd - 2451545.0) / 36525.0;
+  
+  // Get solar declination and equation of time
+  const { declination } = sunGeometry(T);
+  
+  // Calculate local solar time
+  // Equation of time is already included in solar noon calculation
+  // For current position, we need the hour angle
+  const { eot } = sunGeometry(T);
+  
+  // Solar time = UTC time + longitude correction + equation of time
+  const longitudeCorrection = longitude / 15.0; // 15 degrees per hour
+  const solarTime = utcTime + longitudeCorrection + eot / 60.0; // eot in minutes
+  
+  // Hour angle in degrees (15 degrees per hour from solar noon)
+  const hourAngleDeg = (solarTime - 12.0) * 15.0;
+  
+  // Convert to radians
+  const latRad = degToRad(latitude);
+  const decRad = degToRad(declination);
+  const haRad = degToRad(hourAngleDeg);
+  
+  // Calculate solar elevation angle using the formula:
+  // sin(elevation) = sin(latitude) * sin(declination) + cos(latitude) * cos(declination) * cos(hourAngle)
+  const sinElevation = Math.sin(latRad) * Math.sin(decRad) + 
+                       Math.cos(latRad) * Math.cos(decRad) * Math.cos(haRad);
+  
+  const elevationRad = Math.asin(sinElevation);
+  const elevationDeg = radToDeg(elevationRad);
+  
+  return elevationDeg;
+}
