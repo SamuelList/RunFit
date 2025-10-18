@@ -50,7 +50,7 @@ export const ScoreBreakdownContent = ({
           <div className="flex items-center gap-2">
             <Thermometer className="h-4 w-4 text-slate-500" />
             <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-              Feels like {weatherSummary.apparentDisplay}
+              Feels like {parseFloat(weatherSummary.apparentDisplay).toFixed(1)}°F
             </span>
           </div>
           {weatherSummary.windMph > 0 && (
