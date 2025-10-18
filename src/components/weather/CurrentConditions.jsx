@@ -41,6 +41,7 @@ const CurrentConditions = ({
   error,
   runType,
   setShowInsights,
+  onOpenHourBreakdown,
   setRunType,
   handleLocationRefresh,
   cardVariants
@@ -148,7 +149,10 @@ const CurrentConditions = ({
               {derived && (
                 <div className="flex flex-wrap items-center gap-3">
                   <motion.button 
-                    onClick={() => setShowInsights(true)}
+                    onClick={() => {
+                      if (typeof onOpenHourBreakdown === 'function') onOpenHourBreakdown();
+                      else setShowInsights(true);
+                    }}
                     className="flex items-center gap-2 rounded-xl border border-gray-200/60 dark:border-slate-700 bg-gradient-to-br from-white to-gray-50/50 dark:from-slate-800/60 dark:to-slate-900/60 px-4 py-3 shadow-sm hover:border-sky-300 dark:hover:border-sky-600 transition-colors cursor-pointer"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}

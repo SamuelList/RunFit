@@ -473,9 +473,10 @@ export function calculateUTCI({
   // Calculate baseline UTCI (dry conditions)
   const utciC = calculateUTCIPolynomial(tempC, vaporPressure, windMs, constrainedMrtC);
   
-  // Sanity check: UTCI should be within reasonable range of inputs
-  // If calculation produces invalid result, fall back to apparent temperature
-  if (!Number.isFinite(utciC) || Math.abs(utciC) > 200) {
+  // Sanity check: UTCI should be within a physically plausible range.
+  // If calculation produces an invalid or wildly unrealistic result, fall back to a simple apparent temperature.
+  // Acceptable UTCI (°C) operational range for human outdoor conditions: roughly -50°C to +60°C.
+  if (!Number.isFinite(utciC) || utciC < -50 || utciC > 60) {
     // Simple apparent temperature as fallback
     const apparentC = tempC + 0.33 * vaporPressure - 0.7 * windMs - 4.0;
     return {

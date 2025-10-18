@@ -45,9 +45,9 @@ const InsightsModal = ({
       headerRight={
         <div className="flex items-baseline gap-2">
           <div className="text-4xl font-extrabold" style={displayedScoreProps?.tone?.textStyle}>
-            {displayedScoreProps ? displayedScoreProps.score : (typeof score === 'number' ? score : '--')}
+            {displayedScoreProps ? Math.max(1, Math.round(displayedScoreProps.score / 10)) : (typeof score === 'number' ? Math.max(1, Math.round(score / 10)) : '--')}
           </div>
-          <div className="text-sm font-medium text-slate-500 dark:text-slate-400">/100</div>
+          <div className="text-sm font-medium text-slate-500 dark:text-slate-400">/ 10</div>
         </div>
       }
       scoreBar={derived && {

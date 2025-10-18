@@ -1475,6 +1475,7 @@ export default function App() {
   const [coldHands, setColdHands] = useState(initialSettings.coldHands);
   const [gender, setGender] = useState(initialSettings.gender);
   const [loading, setLoading] = useState(true); // Start with loading true for initial load
+  const [initializing, setInitializing] = useState(true); // Keep splash until first full load completes
   const [error, setError] = useState("");
   const [wx, setWx] = useState(null);
   const [customTempEnabled, setCustomTempEnabled] = useState(initialSettings.customTempEnabled);
@@ -1942,7 +1943,18 @@ export default function App() {
     } catch (err) { await ipLocationFallback(); }
   };
 
-  useEffect(() => { tryGeolocate(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    (async () => {
+      setInitializing(true);
+      try {
+        await tryGeolocate();
+      } catch (e) {
+        console.warn('Initial geolocation failed', e);
+      } finally {
+        setInitializing(false);
+      }
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const root = document.documentElement;
@@ -2484,8 +2496,8 @@ export default function App() {
   
   const utciCategory = utciData ? getUTCICategory(utciData.utci) : null;
   
-  // Calculate score based on UTCI
-  const breakdown = utciData ? getUTCIScoreBreakdown(utciData.utci, wx.precip || 0) : {
+  // Calculate score based on UTCI (pass full utciData so breakdown shows components)
+  const breakdown = utciData ? getUTCIScoreBreakdown(utciData, wx.precip || 0) : {
     score: 50,
     label: 'Unknown',
     useWBGT: false,
@@ -3006,6 +3018,26 @@ export default function App() {
           error={error}
           runType={runType}
           setShowInsights={setShowInsights}
+          onOpenHourBreakdown={() => {
+            if (!derived) { setShowInsights(true); return; }
+            const nowSlot = {
+              time: new Date().toISOString(),
+              timeLabel: 'Now',
+              score: derived.score,
+              apparentDisplay: derived.displayApparent,
+              weatherData: {
+                tempF: derived.tempF,
+                apparentF: derived.apparentF,
+                humidity: derived.humidity,
+                windMph: derived.windMph,
+                precipProb: derived.precipProb,
+                precipIn: derived.precipIn,
+              },
+              breakdown: derived.breakdown
+            };
+            setSelectedHourData(nowSlot);
+            setShowHourBreakdown(true);
+          }}
           setRunType={setRunType}
           handleLocationRefresh={handleLocationRefresh}
           cardVariants={cardVariants}
@@ -4357,9 +4389,9 @@ export default function App() {
         headerRight={
           <div className="flex items-baseline gap-2">
             <div className="text-4xl font-extrabold" style={selectedHourDisplay?.tone?.textStyle}>
-              {selectedHourDisplay ? selectedHourDisplay.score : (selectedHourData?.score ? getDisplayedScore(selectedHourData.score, runnerBoldness) : '--')}
+              {selectedHourDisplay ? Math.max(1, Math.round(selectedHourDisplay.score / 10)) : (selectedHourData?.score ? Math.max(1, Math.round(getDisplayedScore(selectedHourData.score, runnerBoldness) / 10)) : '--')}
             </div>
-            <div className="text-sm font-medium text-slate-500 dark:text-slate-400">/100</div>
+            <div className="text-sm font-medium text-slate-500 dark:text-slate-400">/ 10</div>
           </div>
         }
         scoreBar={selectedHourData && selectedHourDisplay && {
@@ -4382,17 +4414,17 @@ export default function App() {
         )}
       </DynamicModal>
 
-      {/* Loading Splash */}
+      {/* Loading Splash: show while initializing (first load) or when actively loading */}
       <AnimatePresence>
-        {loading && (
+        {(initializing || loading) && (
           <LoadingSplash 
-            isLoading={loading} 
-            progress={wx ? 100 : place ? 70 : 30} 
+            isLoading={true}
+            progress={initializing ? (wx ? 80 : 30) : (loading ? (wx ? 90 : 60) : 100)}
             stage={
-              wx ? "Loading complete" : 
-              place ? "Fetching weather data..." : 
-              "Getting your location..."
-            } 
+              initializing ? (place ? 'Initializing — fetching weather...' : 'Initializing — getting location...') :
+              loading ? (wx ? 'Refreshing weather...' : 'Fetching weather data...') :
+              'Loading complete'
+            }
           />
         )}
       </AnimatePresence>
