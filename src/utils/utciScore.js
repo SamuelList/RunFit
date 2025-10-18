@@ -20,31 +20,31 @@ const IDEAL_UTCI = 47.0;
 // 1.0 = standard penalties
 // > 1.0 = harsher penalties (score drops faster)
 // < 1.0 = milder penalties (score drops slower)
-const PENALTY_MULTIPLIER = 4.0;
+const PENALTY_MULTIPLIER = 2.5;
 
 // UTCI ranges and their base penalties
 // These define how much the score decreases per degree away from ideal
 const UTCI_ZONES = [
-  // Extreme Heat: > 106°F
-  { min: 106, max: Infinity, penalty: 2.5, label: 'Extreme Heat' },
-  // Very Strong Heat: 100.4-106°F
-  { min: 100.4, max: 106, penalty: 2.0, label: 'Very Strong Heat' },
-  // Strong Heat: 89.6-100.4°F
-  { min: 89.6, max: 100.4, penalty: 1.5, label: 'Strong Heat' },
-  // Moderate Heat: 78.8-89.6°F
-  { min: 78.8, max: 89.6, penalty: 1.0, label: 'Moderate Heat' },
-  // Comfortable (hot side): 47-78.8°F
-  { min: IDEAL_UTCI, max: 78.8, penalty: 0.4, label: 'Warm' },
-  // Comfortable (cold side): 32-47°F
+  // DANGEROUS COLD
+  { min: -Infinity, max: -40, penalty: 2.5, label: 'Dangerous Cold' },
+  { min: -40, max: -27.4, penalty: 2.2, label: 'Very Strong Cold' },
+  { min: -27.4, max: -15, penalty: 1.8, label: 'Strong Cold' },
+  { min: -15, max: -5.8, penalty: 1.5, label: 'Lower Moderate Cold' },
+  { min: -5.8, max: 8.6, penalty: 1.2, label: 'Moderate Cold' },
+  { min: 8.6, max: 20, penalty: 1.0, label: 'Upper Moderate Cold' },
+  { min: 20, max: 32, penalty: 0.8, label: 'Cold' },
   { min: 32, max: IDEAL_UTCI, penalty: 0.5, label: 'Cool' },
-  // Slight Cold: 8.6-32°F
-  { min: 8.6, max: 32, penalty: 0.8, label: 'Cold' },
-  // Moderate Cold: -5.8 to 8.6°F
-  { min: -5.8, max: 8.6, penalty: 1.2, label: 'Very Cold' },
-  // Strong Cold: -27.4 to -5.8°F
-  { min: -27.4, max: -5.8, penalty: 1.8, label: 'Extreme Cold' },
-  // Very Strong Cold: < -27.4°F
-  { min: -Infinity, max: -27.4, penalty: 2.5, label: 'Dangerous Cold' }
+  // COMFORTABLE (Ideal is 47)
+  { min: IDEAL_UTCI, max: 60, penalty: 0.4, label: 'Comfortable Warm' },
+  { min: 60, max: 70, penalty: 0.6, label: 'Mildly Warm' },
+  { min: 70, max: 78.8, penalty: 0.8, label: 'Warm' },
+  // HEAT STRESS
+  { min: 78.8, max: 84, penalty: 1.0, label: 'Moderate Heat' },
+  { min: 84, max: 89.6, penalty: 1.25, label: 'Upper Moderate Heat' },
+  { min: 89.6, max: 95, penalty: 1.5, label: 'Strong Heat' },
+  { min: 95, max: 100.4, penalty: 1.75, label: 'Upper Strong Heat' },
+  { min: 100.4, max: 106, penalty: 2.0, label: 'Very Strong Heat' },
+  { min: 106, max: Infinity, penalty: 2.5, label: 'Extreme Heat' }
 ];
 
 /**
