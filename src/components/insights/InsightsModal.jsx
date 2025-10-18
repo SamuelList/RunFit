@@ -92,7 +92,7 @@ const InsightsModal = ({
                   </div>
                   <div>
                     <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-                      Performance Score Breakdown
+                      Performance Score Breakdown!
                     </h2>
                     <div className="mt-2 flex items-baseline gap-2">
                       <span 

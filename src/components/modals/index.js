@@ -7,3 +7,5 @@ export { default as GearGuideModal } from './GearGuideModal';
 export { default as GearDetailModal } from './GearDetailModal';
 export { default as DebugModal } from './DebugModal';
 export { default as HourBreakdownModal } from './HourBreakdownModal';
+export { DynamicModal } from './DynamicModal';
+export { ScoreBreakdownContent } from './ScoreBreakdownContent';
