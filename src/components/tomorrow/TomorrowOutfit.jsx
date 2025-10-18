@@ -149,7 +149,7 @@ const TomorrowOutfit = ({
     });
     
     // Get UTCI-based score breakdown
-    const breakdown = utciData ? getUTCIScoreBreakdown(utciData.utci, avgPrecip || 0) : {
+    const breakdown = utciData ? getUTCIScoreBreakdown(utciData, avgPrecip || 0) : {
       score: 50,
       label: 'Unknown',
       useWBGT: false,

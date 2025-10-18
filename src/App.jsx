@@ -30,6 +30,7 @@ import { NightRunningCard } from "./components/night";
 
 // Modal Components
 import { DynamicModal, ScoreBreakdownContent } from "./components/modals";
+import { InsightsModal } from "./components/insights";
 
 // Tomorrow Components
 import { TomorrowOutfit, TimeSelector } from "./components/tomorrow";
@@ -2386,7 +2387,7 @@ export default function App() {
         precipRate: slotPrecip || 0
       });
 
-      const slotBreakdown = slotUtciData ? getUTCIScoreBreakdown(slotUtciData.utci, slotPrecip || 0) : {
+      const slotBreakdown = slotUtciData ? getUTCIScoreBreakdown(slotUtciData, slotPrecip || 0) : {
         score: 50,
         label: 'Unknown',
         useWBGT: false,
@@ -4338,35 +4339,14 @@ export default function App() {
       </AnimatePresence>
 
       {/* Insights Modal */}
-      <DynamicModal
-        isOpen={showInsights}
+      <InsightsModal
+        showInsights={showInsights}
         onClose={() => setShowInsights(false)}
-        title="Performance Score Breakdown"
-        icon={Info}
-        headerRight={
-          <div className="flex items-baseline gap-2">
-            <div className="text-4xl font-extrabold" style={displayedScoreProps?.tone?.textStyle}>
-              {displayedScoreProps ? displayedScoreProps.score : '--'}
-            </div>
-            <div className="text-sm font-medium text-slate-500 dark:text-slate-400">/100</div>
-          </div>
-        }
-        scoreBar={derived && {
-          value: displayedScoreProps?.score ?? 0,
-          style: displayedScoreProps?.tone?.badgeStyle
-        }}
-        variants={{ backdropVariants, modalVariants }}
-      >
-        {!derived ? (
-          <p className="text-slate-500 dark:text-slate-300">Fetching conditions…</p>
-        ) : (
-          <ScoreBreakdownContent
-            breakdown={derived.breakdown}
-            score={displayedScoreProps?.score}
-            variants={{ staggerContainer, listItemVariants }}
-          />
-        )}
-      </DynamicModal>
+        breakdown={derived ? derived.breakdown : null}
+        score={displayedScoreProps?.score}
+        displayedScoreProps={displayedScoreProps}
+        derived={derived}
+      />
 
       {/* Hour Breakdown Modal */}
       <DynamicModal

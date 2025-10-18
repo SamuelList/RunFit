@@ -163,9 +163,9 @@ function buildScoreDescription(score, utciF, deviation, zone, category) {
   if (isIdeal) {
     desc = `Ideal running conditions! UTCI is ${Math.round(utciF)}°F, very close to the optimal ${IDEAL_UTCI}°F.`;
   } else if (isHot) {
-    desc = `${zone} conditions with UTCI of ${Math.round(utciF)}°F (${Math.round(deviation)}° above ideal).`;
+    desc = `${zone.label} conditions with UTCI of ${Math.round(utciF)}°F (${Math.round(deviation)}° above ideal).`;
   } else {
-    desc = `${zone} conditions with UTCI of ${Math.round(utciF)}°F (${Math.round(deviation)}° below ideal).`;
+    desc = `${zone.label} conditions with UTCI of ${Math.round(utciF)}°F (${Math.round(deviation)}° below ideal).`;
   }
 
   // Add stress level description
@@ -195,34 +195,127 @@ export function getScoreLabel(score) {
 /**
  * Get detailed breakdown of score factors for display
  */
-export function getUTCIScoreBreakdown(utciF, precipRate = 0) {
-  const result = calculateUTCIScore(utciF, precipRate);
-  const category = getUTCICategory(utciF);
-  
+export function getUTCIScoreBreakdown(utciInput, precipRate = 0) {
+  // utciInput can be either a numeric UTCI value (°F) or the full object
+  // returned by calculateUTCI (which includes components).
+  let utciVal = null;
+  let components = null;
+  let rainAdj = 0;
+
+  if (utciInput && typeof utciInput === 'object' && utciInput.utci != null) {
+    utciVal = utciInput.utci;
+    components = utciInput.components || {};
+    rainAdj = utciInput.rainAdjustment || 0;
+  } else {
+    // fallback: numeric value
+    utciVal = Number(utciInput);
+    components = { precipRate };
+  }
+
+  const result = calculateUTCIScore(utciVal, precipRate || components.precipRate || 0);
+  const category = getUTCICategory(utciVal);
+
+  // Build factor parts from available components
+  const parts = [];
+
+  // UTCI summary part
+  parts.push({
+    key: 'utci',
+    label: 'UTCI (Universal Thermal Climate Index)',
+    value: `${Math.round(result.utci)}°F`,
+    description: result.description,
+    impact: result.deviation < 5 ? 'low' : result.deviation < 15 ? 'medium' : 'high',
+    penalty: Math.round(result.deviation * result.zonePenalty)
+  });
+
+  // Add air temperature
+  if (components.airTemp != null) {
+    parts.push({
+      key: 'air_temp',
+      label: 'Air Temperature',
+      value: `${Math.round(components.airTemp)}°F`,
+      description: 'Ambient dry-bulb air temperature used in UTCI calculation.',
+      impact: 'low',
+      penalty: 0
+    });
+  }
+
+  // Feels-like / apparent (if present)
+  if (components.apparentTemp != null) {
+    parts.push({
+      key: 'feels_like',
+      label: 'Feels Like',
+      value: `${Math.round(components.apparentTemp)}°F`,
+      description: 'Apparent temperature / heat index for quick reference.',
+      impact: 'low',
+      penalty: 0
+    });
+  }
+
+  // Humidity / vapor pressure
+  if (components.humidity != null) {
+    parts.push({
+      key: 'humidity',
+      label: 'Relative Humidity',
+      value: `${Math.round(components.humidity)}%`,
+      description: 'Relative humidity influences evaporative cooling and UTCI via vapor pressure.',
+      impact: 'medium',
+      penalty: 0
+    });
+  }
+
+  // Wind
+  if (components.windMph != null) {
+    parts.push({
+      key: 'wind',
+      label: 'Wind Speed',
+      value: `${Math.round(components.windMph)} mph`,
+      description: 'Wind increases convective heat loss; accounted for in UTCI at 10m wind speed.',
+      impact: 'medium',
+      penalty: 0
+    });
+  }
+
+  // MRT and note about solar/longwave
+  if (components.mrt != null) {
+    parts.push({
+      key: 'mrt',
+      label: 'Mean Radiant Temperature (MRT)',
+      value: `${Math.round(components.mrt)}°F`,
+      description: 'MRT captures the combined radiative environment (sun + sky + ground); higher MRT increases UTCI.',
+      impact: 'medium',
+      penalty: 0
+    });
+  }
+
+  // Rain info (informational)
+  if (components.precipRate != null && components.precipRate > 0) {
+    parts.push({
+      key: 'precip',
+      label: 'Precipitation',
+      value: `${components.precipRate.toFixed(2)} in/hr`,
+      description: `Precipitation lowers perceived temperature (rain adjustment: ${rainAdj}°F).`,
+      impact: 'low',
+      penalty: 0
+    });
+  }
+
+  // Thermal stress / category
+  parts.push({
+    key: 'thermal_stress',
+    label: 'Thermal Stress Level',
+    value: category.label,
+    description: `${category.icon} ${category.description}`,
+    impact: category.impact === 'extreme' || category.impact === 'very_high' ? 'high' : 
+            category.impact === 'high' || category.impact === 'moderate' ? 'medium' : 'low',
+    penalty: 0
+  });
+
   return {
     score: result.score,
     label: getScoreLabel(result.score),
     useWBGT: false, // This is UTCI-based
-    parts: [
-      {
-        key: 'utci',
-        label: 'UTCI (Universal Thermal Climate Index)',
-        value: `${Math.round(result.utci)}°F`,
-        description: result.description,
-        impact: result.deviation < 5 ? 'low' : result.deviation < 15 ? 'medium' : 'high',
-        penalty: Math.round(result.deviation * result.zonePenalty)
-      },
-      {
-        key: 'thermal_stress',
-        label: 'Thermal Stress Level',
-        value: category.label,
-        description: `${category.icon} ${category.description}`,
-        impact: category.impact === 'extreme' || category.impact === 'very_high' ? 'high' : 
-                category.impact === 'high' || category.impact === 'moderate' ? 'medium' : 'low',
-        penalty: 0 // Already factored into UTCI deviation
-      }
-      // Note: Precipitation effects are already included in the UTCI calculation
-    ],
+    parts,
     result: {
       label: 'Final Performance Score',
       value: `${result.score}/100`,
