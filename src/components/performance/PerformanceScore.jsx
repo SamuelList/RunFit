@@ -225,6 +225,77 @@ const PerformanceScore = ({
               </motion.div>
             )}
 
+            {/* UTCI (Universal Thermal Climate Index) */}
+            {derived?.utci != null && (
+              <motion.div 
+                className={`flex items-center gap-2.5 rounded-xl border p-3 ${
+                  derived.utciCategory?.impact === 'extreme' || derived.utciCategory?.impact === 'very_high'
+                    ? 'border-red-200 dark:border-red-500/30 bg-red-50/60 dark:bg-red-500/10'
+                    : derived.utciCategory?.impact === 'high'
+                    ? 'border-orange-200 dark:border-orange-500/30 bg-orange-50/60 dark:bg-orange-500/10'
+                    : derived.utciCategory?.impact === 'moderate'
+                    ? 'border-amber-200 dark:border-amber-500/30 bg-amber-50/60 dark:bg-amber-500/10'
+                    : derived.utciCategory?.impact === 'minimal'
+                    ? 'border-green-200 dark:border-green-500/30 bg-green-50/60 dark:bg-green-500/10'
+                    : 'border-sky-200 dark:border-sky-500/30 bg-sky-50/60 dark:bg-sky-500/10'
+                }`}
+                variants={listItemVariants}
+                whileHover={{ scale: 1.05, transition: { duration: 0.2 } }}
+              >
+                <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+                  derived.utciCategory?.impact === 'extreme' || derived.utciCategory?.impact === 'very_high'
+                    ? 'bg-red-100 dark:bg-red-500/20'
+                    : derived.utciCategory?.impact === 'high'
+                    ? 'bg-orange-100 dark:bg-orange-500/20'
+                    : derived.utciCategory?.impact === 'moderate'
+                    ? 'bg-amber-100 dark:bg-amber-500/20'
+                    : derived.utciCategory?.impact === 'minimal'
+                    ? 'bg-green-100 dark:bg-green-500/20'
+                    : 'bg-sky-100 dark:bg-sky-500/20'
+                }`}>
+                  <Thermometer className={`h-5 w-5 ${
+                    derived.utciCategory?.impact === 'extreme' || derived.utciCategory?.impact === 'very_high'
+                      ? 'text-red-600 dark:text-red-400'
+                      : derived.utciCategory?.impact === 'high'
+                      ? 'text-orange-600 dark:text-orange-400'
+                      : derived.utciCategory?.impact === 'moderate'
+                      ? 'text-amber-600 dark:text-amber-400'
+                      : derived.utciCategory?.impact === 'minimal'
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-sky-600 dark:text-sky-400'
+                  }`} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className={`text-xs ${
+                    derived.utciCategory?.impact === 'extreme' || derived.utciCategory?.impact === 'very_high'
+                      ? 'text-red-600 dark:text-red-400'
+                      : derived.utciCategory?.impact === 'high'
+                      ? 'text-orange-600 dark:text-orange-400'
+                      : derived.utciCategory?.impact === 'moderate'
+                      ? 'text-amber-600 dark:text-amber-400'
+                      : derived.utciCategory?.impact === 'minimal'
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-sky-600 dark:text-sky-400'
+                  }`}>
+                    UTCI
+                  </div>
+                  <div className={`text-sm font-bold ${
+                    derived.utciCategory?.impact === 'extreme' || derived.utciCategory?.impact === 'very_high'
+                      ? 'text-red-800 dark:text-red-200'
+                      : derived.utciCategory?.impact === 'high'
+                      ? 'text-orange-800 dark:text-orange-200'
+                      : derived.utciCategory?.impact === 'moderate'
+                      ? 'text-amber-800 dark:text-amber-200'
+                      : derived.utciCategory?.impact === 'minimal'
+                      ? 'text-green-800 dark:text-green-200'
+                      : 'text-sky-800 dark:text-sky-200'
+                  }`}>
+                    {round1(derived.utci)}°{unit}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
             {/* Cloud Cover */}
             <motion.div 
               className="flex items-center gap-2.5 rounded-xl border border-gray-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 p-3"

@@ -231,16 +231,12 @@ export function calculateSolarElevation({ latitude, longitude, timestamp = Date.
   const T = (jd - 2451545.0) / 36525.0;
   
   // Get solar declination and equation of time
-  const { declination } = sunGeometry(T);
+  const { declination, equationOfTimeMinutes } = sunGeometry(T);
   
   // Calculate local solar time
-  // Equation of time is already included in solar noon calculation
-  // For current position, we need the hour angle
-  const { eot } = sunGeometry(T);
-  
   // Solar time = UTC time + longitude correction + equation of time
   const longitudeCorrection = longitude / 15.0; // 15 degrees per hour
-  const solarTime = utcTime + longitudeCorrection + eot / 60.0; // eot in minutes
+  const solarTime = utcTime + longitudeCorrection + equationOfTimeMinutes / 60.0; // eot in minutes
   
   // Hour angle in degrees (15 degrees per hour from solar noon)
   const hourAngleDeg = (solarTime - 12.0) * 15.0;

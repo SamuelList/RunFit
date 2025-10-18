@@ -5,6 +5,8 @@ import { RadialBarChart, RadialBar, PolarAngleAxis } from "recharts";
 
 // Utils
 import { computeSunEvents, calculateSolarElevation } from "./utils/solar";
+import { calculateMRT, getMRTCategory, calculateEffectiveSolarTemp } from "./utils/mrt";
+import { calculateUTCI, getUTCICategory, getUTCIColorClasses } from "./utils/utci";
 import { GEAR_INFO, GEAR_ICONS } from "./utils/gearData";
 import { APP_VERSION, DEFAULT_PLACE, DEFAULT_SETTINGS, FORECAST_ALERT_META, nominatimHeaders } from "./utils/constants";
 import { clamp, round1, msToMph, mmToInches, cToF, fToC, computeFeelsLike, blendWeather, getCurrentHourIndex } from "./utils/helpers";
@@ -555,14 +557,8 @@ const ProgressBar = ({ pct }) => (
   - Defaults to °F, Kansas City, MO, and "Female" profile.
 */
 
-async function fetchMetNoWeather(p, unit) {
-  const url = `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${p.lat}&lon=${p.lon}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('MET Norway fetch failed');
-  const data = await res.json();
-  const first = data?.properties?.timeseries?.[0];
-  if (!first?.data?.instant?.details) throw new Error('MET Norway missing data');
-
+// Extract raw weather values from MET.no API response
+function extractMetNoRawData(first) {
   const details = first.data.instant.details;
   const next1h = first.data.next_1_hours?.details;
   const next6h = first.data.next_6_hours?.details;
@@ -571,12 +567,14 @@ async function fetchMetNoWeather(p, unit) {
   const humidity = typeof details.relative_humidity === 'number' ? details.relative_humidity : null;
   const windMs = typeof details.wind_speed === 'number' ? details.wind_speed : null;
   const cloud = typeof details.cloud_area_fraction === 'number' ? details.cloud_area_fraction : null;
+  
   const precipMm =
     typeof next1h?.precipitation_amount === 'number'
       ? next1h.precipitation_amount
       : typeof next6h?.precipitation_amount === 'number'
       ? next6h.precipitation_amount / 6
       : null;
+  
   const precipProb =
     typeof next1h?.probability_of_precipitation === 'number'
       ? next1h.probability_of_precipitation
@@ -584,7 +582,16 @@ async function fetchMetNoWeather(p, unit) {
       ? next6h.probability_of_precipitation
       : null;
 
-  const feels = typeof tempC === 'number' ? computeFeelsLike(tempC, windMs ?? 0, humidity ?? 50) : null;
+  return { tempC, humidity, windMs, cloud, precipMm, precipProb, details };
+}
+
+// Convert raw weather data to user's preferred units
+function convertWeatherUnits(raw, unit) {
+  const { tempC, humidity, windMs, cloud, precipMm, precipProb } = raw;
+  
+  const feels = typeof tempC === 'number' 
+    ? computeFeelsLike(tempC, windMs ?? 0, humidity ?? 50) 
+    : null;
 
   const temperature = tempC == null ? undefined : unit === 'F' ? cToF(tempC) : tempC;
   const apparent = feels == null ? temperature : unit === 'F' ? feels.f : feels.c;
@@ -602,6 +609,175 @@ async function fetchMetNoWeather(p, unit) {
     uv: undefined,
     cloud,
   };
+}
+
+// Log comprehensive weather debug information with derived calculations
+function logWeatherDebug(weatherData, raw, location, unit) {
+  const { tempC, humidity, windMs, cloud, precipMm, precipProb, details } = raw;
+  const { temperature, apparent, wind, precip } = weatherData;
+
+  // Calculate derived metrics for troubleshooting
+  const now = new Date();
+  const solarElevation = calculateSolarElevation({
+    latitude: location.lat,
+    longitude: location.lon,
+    timestamp: now,
+  });
+  
+  const mrtData = calculateMRT({
+    tempF: temperature,
+    humidity: humidity || 50,
+    solarRadiation: 0, // MET.no doesn't provide this, will be estimated
+    solarElevation: solarElevation ?? 0, // Use nullish coalescing to allow negative values
+    cloudCover: cloud || 50,
+    windMph: wind || 0
+  });
+  
+  const utciData = calculateUTCI({
+    tempF: temperature,
+    humidity: humidity || 50,
+    windMph: wind || 0,
+    mrt: mrtData?.mrt || temperature,
+    precipRate: precip || 0
+  });
+
+  // Calculate dew point
+  const dewPointC = tempC != null && humidity != null 
+    ? tempC - ((100 - humidity) / 5)
+    : null;
+  const dewPointF = dewPointC != null ? (dewPointC * 9/5) + 32 : null;
+
+  // Wind chill calculation (for temps below 50°F and wind > 3mph)
+  const windChillF = temperature != null && temperature < 50 && wind > 3
+    ? 35.74 + (0.6215 * temperature) - (35.75 * Math.pow(wind, 0.16)) + (0.4275 * temperature * Math.pow(wind, 0.16))
+    : null;
+
+  // Heat index approximation (for temps above 80°F)
+  const heatIndexF = temperature != null && humidity != null && temperature > 80
+    ? -42.379 + 2.04901523*temperature + 10.14333127*humidity - 0.22475541*temperature*humidity -
+      0.00683783*temperature*temperature - 0.05481717*humidity*humidity + 0.00122874*temperature*temperature*humidity +
+      0.00085282*temperature*humidity*humidity - 0.00000199*temperature*temperature*humidity*humidity
+    : null;
+
+  console.log('========================================');
+  console.log('🌤️ WEATHER DEBUG LOG');
+  console.log('========================================');
+  console.log('📍 Location:', `${location.lat.toFixed(4)}°, ${location.lon.toFixed(4)}°`);
+  console.log('⏰ Timestamp:', now.toLocaleString());
+  console.log('🌐 API:', 'MET Norway (api.met.no)');
+  console.log('');
+  
+  console.log('🌡️ Temperature:');
+  console.log('  • Air Temperature:', temperature?.toFixed(1) ?? 'N/A', unit === 'F' ? '°F' : '°C');
+  console.log('  • Apparent/Feels:', apparent?.toFixed(1) ?? 'N/A', unit === 'F' ? '°F' : '°C');
+  console.log('  • Dew Point:', dewPointF?.toFixed(1) ?? 'N/A', '°F');
+  console.log('  • Raw (°C):', tempC?.toFixed(2) ?? 'N/A');
+  if (windChillF) console.log('  • Wind Chill:', windChillF.toFixed(1), '°F');
+  if (heatIndexF) console.log('  • Heat Index:', heatIndexF.toFixed(1), '°F');
+  console.log('');
+  
+  console.log('💧 Moisture:');
+  console.log('  • Relative Humidity:', humidity != null ? `${humidity.toFixed(1)}%` : 'N/A');
+  console.log('  • Precipitation Rate:', precip != null ? `${precip.toFixed(3)} in/hr` : 'N/A');
+  console.log('  • Precip Probability:', precipProb != null ? `${precipProb.toFixed(0)}%` : 'N/A');
+  console.log('  • Raw Precip (mm/hr):', precipMm != null ? precipMm.toFixed(2) : 'N/A');
+  console.log('');
+  
+  console.log('💨 Wind:');
+  console.log('  • Speed:', wind != null ? `${wind.toFixed(1)} mph` : 'N/A');
+  console.log('  • Speed (m/s):', windMs != null ? windMs.toFixed(2) : 'N/A');
+  console.log('  • Beaufort Scale:', wind != null ? getBeaufortScale(wind) : 'N/A');
+  console.log('');
+  
+  console.log('☁️ Sky Conditions:');
+  console.log('  • Cloud Cover:', cloud != null ? `${cloud.toFixed(1)}%` : 'N/A');
+  console.log('  • Sky Description:', cloud != null ? getSkyDescription(cloud) : 'N/A');
+  console.log('  • UV Index:', weatherData.uv ?? 'N/A (not provided by MET.no)');
+  console.log('');
+  
+  console.log('☀️ Solar & Radiation:');
+  console.log('  • Solar Elevation:', solarElevation != null ? `${solarElevation.toFixed(2)}°` : 'N/A');
+  console.log('  • Sun Status:', solarElevation > 0 ? '☀️ Above Horizon' : '🌙 Below Horizon');
+  console.log('  • Est. Solar Radiation:', mrtData?.solarRadiation?.toFixed(0) ?? 'N/A', 'W/m²');
+  console.log('');
+  
+  console.log('🌡️ Thermal Comfort Indices:');
+  console.log('  • MRT (Mean Radiant Temp):', mrtData?.mrt?.toFixed(1) ?? 'N/A', '°F');
+  console.log('  • MRT Enhancement:', mrtData?.enhancement?.toFixed(1) ?? 'N/A', '°F');
+  console.log('  • MRT Category:', mrtData ? getMRTCategory(mrtData.mrt, temperature) : 'N/A');
+  if (mrtData?.components) {
+    console.log('  • MRT Components:');
+    console.log('    - Longwave Down:', mrtData.components.longwaveDown?.toFixed(1), 'W/m²');
+    console.log('    - Longwave Up:', mrtData.components.longwaveUp?.toFixed(1), 'W/m²');
+    console.log('    - Solar Direct:', mrtData.components.solarDirect?.toFixed(1), 'W/m²');
+    console.log('    - Solar Diffuse:', mrtData.components.solarDiffuse?.toFixed(1), 'W/m²');
+    console.log('    - Projected Area:', mrtData.components.projectedAreaFactor?.toFixed(3));
+  }
+  console.log('  • UTCI:', utciData?.utci?.toFixed(1) ?? 'N/A', '°F');
+  console.log('  • UTCI Stress Level:', utciData ? getUTCICategory(utciData.utci) : 'N/A');
+  console.log('  • UTCI Adjustment:', utciData?.adjustment?.toFixed(1) ?? 'N/A', '°F');
+  console.log('');
+  
+  console.log('📊 Raw MET.no API Values:');
+  console.log('  • air_temperature:', details.air_temperature, '°C');
+  console.log('  • relative_humidity:', details.relative_humidity, '%');
+  console.log('  • wind_speed:', details.wind_speed, 'm/s');
+  console.log('  • cloud_area_fraction:', details.cloud_area_fraction, '%');
+  console.log('  • wind_from_direction:', details.wind_from_direction ?? 'N/A', '°');
+  console.log('  • air_pressure_at_sea_level:', details.air_pressure_at_sea_level ?? 'N/A', 'hPa');
+  console.log('');
+  
+  console.log('🔍 Data Quality:');
+  console.log('  • Temperature Valid:', temperature != null && !isNaN(temperature));
+  console.log('  • Humidity Valid:', humidity != null && humidity >= 0 && humidity <= 100);
+  console.log('  • Wind Valid:', wind != null && wind >= 0);
+  console.log('  • Cloud Valid:', cloud != null && cloud >= 0 && cloud <= 100);
+  console.log('  • All Core Data Present:', [temperature, humidity, wind, cloud].every(v => v != null));
+  console.log('========================================');
+}
+
+// Helper: Get Beaufort wind scale description
+function getBeaufortScale(mph) {
+  if (mph < 1) return '0 - Calm';
+  if (mph < 4) return '1 - Light Air';
+  if (mph < 8) return '2 - Light Breeze';
+  if (mph < 13) return '3 - Gentle Breeze';
+  if (mph < 19) return '4 - Moderate Breeze';
+  if (mph < 25) return '5 - Fresh Breeze';
+  if (mph < 32) return '6 - Strong Breeze';
+  if (mph < 39) return '7 - Near Gale';
+  if (mph < 47) return '8 - Gale';
+  if (mph < 55) return '9 - Strong Gale';
+  if (mph < 64) return '10 - Storm';
+  if (mph < 73) return '11 - Violent Storm';
+  return '12 - Hurricane';
+}
+
+// Helper: Get sky description from cloud cover percentage
+function getSkyDescription(cloudPercent) {
+  if (cloudPercent < 10) return 'Clear';
+  if (cloudPercent < 30) return 'Mostly Clear';
+  if (cloudPercent < 50) return 'Partly Cloudy';
+  if (cloudPercent < 70) return 'Mostly Cloudy';
+  if (cloudPercent < 90) return 'Cloudy';
+  return 'Overcast';
+}
+
+// Fetch and process weather data from MET Norway API
+async function fetchMetNoWeather(p, unit) {
+  const url = `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${p.lat}&lon=${p.lon}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('MET Norway fetch failed');
+  
+  const data = await res.json();
+  const first = data?.properties?.timeseries?.[0];
+  if (!first?.data?.instant?.details) throw new Error('MET Norway missing data');
+
+  const raw = extractMetNoRawData(first);
+  const weatherData = convertWeatherUnits(raw, unit);
+  logWeatherDebug(weatherData, raw, p, unit);
+
+  return weatherData;
 }
 
 
@@ -1615,29 +1791,6 @@ export default function App() {
       const wind = data?.current_weather?.windspeed;
       const apparent = data?.hourly?.apparent_temperature?.[idx] ?? temp;
       const timezone = typeof data?.timezone === "string" ? data.timezone : undefined;
-      
-      // Debug: Check current hour index and solar radiation
-      const solarAtIdx = data?.hourly?.shortwave_radiation?.[idx];
-      const next12Solar = Array.from({length: 12}, (_, i) => 
-        data?.hourly?.shortwave_radiation?.[idx + i]
-      );
-      
-      console.log('========================================');
-      console.log('⏰ SOLAR RADIATION DIAGNOSIS');
-      console.log('========================================');
-      console.log('Current Array Index:', idx);
-      console.log('Current Time (from array):', currentTime);
-      console.log('Your Local Time:', new Date().toISOString());
-      console.log('Is Daytime (API says):', data?.current_weather?.is_day === 1);
-      console.log('----------------------------------------');
-      console.log('Solar at Current Index [' + idx + ']:', solarAtIdx, 'W/m²');
-      console.log('----------------------------------------');
-      console.log('Next 12 Hours Solar Radiation:');
-      next12Solar.forEach((solar, i) => {
-        const hour = data?.hourly?.time?.[idx + i];
-        console.log('  [' + (idx + i) + '] ' + hour + ' → ' + (solar || 0).toFixed(1) + ' W/m²');
-      });
-      console.log('========================================');
 
       const fallbackSunrise = Array.isArray(data?.daily?.sunrise) ? data.daily.sunrise.filter(Boolean) : [];
       const fallbackSunset = Array.isArray(data?.daily?.sunset) ? data.daily.sunset.filter(Boolean) : [];
@@ -1949,20 +2102,6 @@ export default function App() {
     recs.handsLevel,
     longRun
   );
-  
-  // Debug: Check what's in wx object vs hourly forecast
-  console.log('☀️ Solar Radiation Debug:', {
-    current_solarRadiation: wx.solarRadiation,
-    current_isDay: wx.isDay,
-    current_uv: wx.uv,
-    current_cloud: wx.cloud,
-    hourly_sample: wx.hourlyForecast?.slice(0, 12).map((h, i) => ({
-      hour: i,
-      temp: h.temperature?.toFixed(1),
-      solar: h.solarRadiation?.toFixed(1),
-      uv: h.uv?.toFixed(1)
-    }))
-  });
   
   const score = breakdown.score;
 
@@ -2475,6 +2614,30 @@ export default function App() {
       })
     : null;
   
+  // Calculate Mean Radiant Temperature (MRT)
+  const mrtData = calculateMRT({
+    tempF: tempFWx,
+    humidity: wx.humidity,
+    solarRadiation: wx.solarRadiation || 0,
+    solarElevation: solarElevation ?? 0, // Use nullish coalescing to allow negative values
+    cloudCover: wx.cloud || 50,
+    windMph: wx.wind
+  });
+  
+  const mrtCategory = mrtData ? getMRTCategory(mrtData.mrt, tempFWx) : null;
+  const effectiveSolarTemp = mrtData ? calculateEffectiveSolarTemp(tempFWx, mrtData.mrt, wx.wind) : null;
+  
+  // Calculate Universal Thermal Climate Index (UTCI)
+  const utciData = calculateUTCI({
+    tempF: tempFWx,
+    humidity: wx.humidity,
+    windMph: wx.wind,
+    mrt: mrtData?.mrt || tempFWx,
+    precipRate: wx.precip || 0 // inches per hour
+  });
+  
+  const utciCategory = utciData ? getUTCICategory(utciData.utci) : null;
+  
   return {
     apparentF: apparentFWx,
     tempF: tempFWx,
@@ -2501,6 +2664,13 @@ export default function App() {
     moonPhase,
     bestRunTimes,
     solarElevation, // Solar angle above horizon in degrees
+    mrt: mrtData?.mrt, // Mean Radiant Temperature
+    mrtEnhancement: mrtData?.enhancement, // How much warmer than air temp
+    mrtCategory, // MRT category info (label, color, impact)
+    effectiveSolarTemp, // Effective temperature accounting for solar radiation
+    utci: utciData?.utci, // Universal Thermal Climate Index
+    utciCategory, // UTCI stress category
+    utciRainAdjustment: utciData?.rainAdjustment, // Rain cooling effect
     // Hour click handler for forecast
     onHourClick: (slot) => {
       setSelectedHourData(slot);

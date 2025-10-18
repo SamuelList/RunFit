@@ -120,20 +120,56 @@ export async function fetchWeather(location, unit) {
       data?.hourly?.shortwave_radiation?.[idx + i]
     );
 
+    // Weather Debug Log - comprehensive weather data for troubleshooting
     console.log('========================================');
-    console.log('⏰ SOLAR RADIATION DIAGNOSIS');
+    console.log('🌤️ WEATHER DEBUG LOG');
     console.log('========================================');
-    console.log('Current Array Index:', idx);
-    console.log('Current Time (from array):', currentTime);
-    console.log('Your Local Time:', new Date().toISOString());
-    console.log('Is Daytime (API says):', data?.current_weather?.is_day === 1);
-    console.log('----------------------------------------');
-    console.log('Solar at Current Index [' + idx + ']:', solarAtIdx, 'W/m²');
-    console.log('----------------------------------------');
-    console.log('Next 12 Hours Solar Radiation:');
-    next12Solar.forEach((solar, i) => {
-      const hour = data?.hourly?.time?.[idx + i];
-      console.log('  [' + (idx + i) + '] ' + hour + ' → ' + (solar || 0).toFixed(1) + ' W/m²');
+    console.log('📍 Location:', {
+      lat: location.lat,
+      lon: location.lon,
+      timezone: timezone
+    });
+    console.log('⏰ Timestamp:', {
+      arrayIndex: idx,
+      apiTime: currentTime,
+      localTime: new Date().toISOString(),
+      isDaytime: data?.current_weather?.is_day === 1
+    });
+    console.log('🌡️ Temperature:', {
+      current: data?.hourly?.temperature_2m?.[idx] + '°C',
+      apparent: data?.hourly?.apparent_temperature?.[idx] + '°C',
+      dewPoint: data?.hourly?.dew_point_2m?.[idx] + '°C'
+    });
+    console.log('💧 Moisture:', {
+      humidity: data?.hourly?.relative_humidity_2m?.[idx] + '%',
+      precipProb: data?.hourly?.precipitation_probability?.[idx] + '%',
+      precip: data?.hourly?.precipitation?.[idx] + ' mm'
+    });
+    console.log('💨 Wind:', {
+      speed: data?.hourly?.wind_speed_10m?.[idx] + ' km/h',
+      direction: data?.hourly?.wind_direction_10m?.[idx] + '°',
+      gusts: data?.hourly?.wind_gusts_10m?.[idx] + ' km/h'
+    });
+    console.log('☁️ Sky:', {
+      cloudCover: data?.hourly?.cloud_cover?.[idx] + '%',
+      visibility: data?.hourly?.visibility?.[idx] + ' m',
+      weatherCode: data?.hourly?.weather_code?.[idx]
+    });
+    console.log('☀️ Radiation:', {
+      current: solarAtIdx + ' W/m²',
+      uvIndex: data?.daily?.uv_index_max?.[0],
+      next3Hours: next12Solar.slice(0, 3).map((s, i) => 
+        data?.hourly?.time?.[idx + i] + ': ' + (s || 0).toFixed(1) + ' W/m²'
+      )
+    });
+    console.log('🌅 Sun Events:', {
+      sunrise: data?.daily?.sunrise?.[0],
+      sunset: data?.daily?.sunset?.[0],
+      daylight: data?.daily?.daylight_duration?.[0] + ' sec'
+    });
+    console.log('📊 Pressure:', {
+      surfacePressure: data?.hourly?.surface_pressure?.[idx] + ' hPa',
+      pressureMsl: data?.hourly?.pressure_msl?.[idx] + ' hPa'
     });
     console.log('========================================');
   }
