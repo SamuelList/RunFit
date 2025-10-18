@@ -34,11 +34,11 @@ const WeatherGauge = ({ gaugeData, displayedScoreProps, setShowInsights }) => {
           <PolarAngleAxis type="number" domain={[0, 100]} angleAxisId={0} tick={false} />
           <RadialBar minAngle={15} background dataKey="value" clockWise cornerRadius={20} />
         </RadialBarChart>
-        <div className="pointer-events-none absolute text-center">
+                <div className="pointer-events-none absolute text-center">
           <div className="text-6xl font-extrabold" style={displayedScoreProps?.tone?.textStyle}>
-            {displayedScoreProps ? displayedScoreProps.score : "--"}
+            {displayedScoreProps ? Math.max(1, Math.round(displayedScoreProps.score / 10)) : "--"}
           </div>
-          <div className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">out of 100</div>
+          <div className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">out of 10</div>
         </div>
       </div>
 

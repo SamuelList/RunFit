@@ -278,7 +278,7 @@ const TomorrowOutfit = ({
               <div className="flex items-center justify-between rounded-xl bg-white/70 dark:bg-slate-800/50 p-4">
                 <div>
                   <div className="text-sm font-medium text-slate-600 dark:text-slate-400">Run Score</div>
-                  <div className="text-3xl font-extrabold mt-1" style={tone.textStyle}>{displayScore}</div>
+                  <div className="text-3xl font-extrabold mt-1" style={tone.textStyle}>{Math.max(1, Math.round(displayScore / 10))}</div>
                   <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">{label.text}</div>
                 </div>
                 <div className="text-right">
@@ -435,7 +435,7 @@ const TomorrowOutfit = ({
                     <div className="mt-0.5 text-xl font-bold text-slate-900 dark:text-slate-100">{displayTemp}°{unit}</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-2xl font-bold" style={tone.textStyle}>{displayScore}</div>
+                    <div className="text-2xl font-bold" style={tone.textStyle}>{Math.max(1, Math.round(displayScore / 10))}</div>
                   </div>
                 </div>
               </div>

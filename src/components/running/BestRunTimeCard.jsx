@@ -74,11 +74,11 @@ export function BestRunTimeCard({ derived, unit, getDisplayedScore, runnerBoldne
           </div>
           <div className="flex flex-col items-end gap-1">
             <div className="text-4xl font-bold" style={tone.textStyle}>
-              {displayScore}
+              {Math.max(1, Math.round(displayScore / 10))}
             </div>
-            <span className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium" style={tone.badgeStyle}>
+            {/* <span className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium" style={tone.badgeStyle}>
               {label.text}
-            </span>
+            </span> */}
           </div>
         </div>
         {highlights.length > 1 && (
