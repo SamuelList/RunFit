@@ -331,103 +331,82 @@ function getRainAdjustment(utciF, intensity) {
   return adjustments[category][intensity] || 0;
 }
 
+import { UTCI_ZONES } from './utciScore';
+
 /**
  * Get UTCI stress category and description
  * @param {number} utciF - UTCI in Fahrenheit
  * @returns {Object} Category info with label, description, color, and impact
  */
 export function getUTCICategory(utciF) {
-  if (utciF >= 106) {
-    return {
-      category: 'extreme_heat_stress',
-      label: 'Extreme Heat Stress',
-      description: 'Dangerous conditions. Avoid outdoor activity.',
-      color: 'red',
-      impact: 'extreme',
-      icon: '🔥'
+  const zone = UTCI_ZONES.find(z => utciF >= z.min && utciF < z.max);
+  
+  if (zone) {
+    let color, impact, icon;
+    
+    // Determine color, impact, and icon based on the zone's label
+    const label = zone.label.toLowerCase();
+    
+    // UTCI Zone to Color Mapping
+    const colorMap = {
+      'dangerous cold': 'purple',
+      'very strong cold': 'indigo',
+      'strong cold': 'blue',
+      'lower moderate cold': 'sky',
+      'moderate cold': 'sky',
+      'upper moderate cold': 'sky',
+      'cold': 'green',
+      'cool': 'green',
+      'ideal': 'green',
+      'comfortable warm': 'green',
+      'mildly warm': 'amber',
+      'warm': 'amber',
+      'moderate heat': 'orange',
+      'upper moderate heat': 'orange',
+      'strong heat': 'red',
+      'upper strong heat': 'red',
+      'very strong heat': 'red',
+      'extreme heat': 'red'
     };
-  } else if (utciF >= 100.4) {
+    
+    color = colorMap[label] || 'green';
+    
+    if (label.includes('extreme')) {
+      impact = 'extreme';
+      icon = '⚠️';
+    } else if (label.includes('very strong')) {
+      impact = 'very_high';
+      icon = '🥵';
+    } else if (label.includes('strong')) {
+      impact = 'high';
+      icon = '☀️';
+    } else if (label.includes('moderate')) {
+      impact = 'moderate';
+      icon = '😓';
+    } else {
+      impact = 'minimal';
+      icon = '✅';
+    }
+    
     return {
-      category: 'very_strong_heat_stress',
-      label: 'Very Strong Heat',
-      description: 'High risk of heat illness. Limit activity.',
-      color: 'red',
-      impact: 'very_high',
-      icon: '🥵'
-    };
-  } else if (utciF >= 89.6) {
-    return {
-      category: 'strong_heat_stress',
-      label: 'Strong Heat Stress',
-      description: 'Challenging conditions. Take precautions.',
-      color: 'orange',
-      impact: 'high',
-      icon: '☀️'
-    };
-  } else if (utciF >= 78.8) {
-    return {
-      category: 'moderate_heat_stress',
-      label: 'Moderate Heat',
-      description: 'Warm conditions. Stay hydrated.',
-      color: 'amber',
-      impact: 'moderate',
-      icon: '😓'
-    };
-  } else if (utciF >= 48.2) {
-    return {
-      category: 'no_thermal_stress',
-      label: 'Comfortable',
-      description: 'Ideal running conditions.',
-      color: 'green',
-      impact: 'minimal',
-      icon: '✅'
-    };
-  } else if (utciF >= 32) {
-    return {
-      category: 'slight_cold_stress',
-      label: 'Slight Cold',
-      description: 'Cool conditions. Layer appropriately.',
-      color: 'sky',
-      impact: 'low',
-      icon: '🧊'
-    };
-  } else if (utciF >= 8.6) {
-    return {
-      category: 'moderate_cold_stress',
-      label: 'Moderate Cold',
-      description: 'Cold conditions. Protect extremities.',
-      color: 'blue',
-      impact: 'moderate',
-      icon: '❄️'
-    };
-  } else if (utciF >= -5.8) {
-    return {
-      category: 'strong_cold_stress',
-      label: 'Strong Cold',
-      description: 'Harsh conditions. Full winter gear needed.',
-      color: 'indigo',
-      impact: 'high',
-      icon: '🥶'
-    };
-  } else if (utciF >= -27.4) {
-    return {
-      category: 'very_strong_cold_stress',
-      label: 'Very Strong Cold',
-      description: 'Dangerous cold. Limit exposure time.',
-      color: 'purple',
-      impact: 'very_high',
-      icon: '🧊'
-    };
-  } else {
-    return {
-      category: 'extreme_cold_stress',
-      label: 'Extreme Cold',
-      description: 'Life-threatening conditions. Stay indoors.',
-      color: 'purple',
-      impact: 'extreme',
-      icon: '⚠️'
+      category: zone.label.replace(/\s+/g, '_').toLowerCase(),
+      label: zone.label,
+      description: `Conditions are ${zone.label.toLowerCase()}.`,
+      color,
+      impact,
+      icon
     };
   }
+  
+  // Fallback for out-of-range values
+  return {
+    category: 'unknown',
+    label: 'Unknown',
+    description: 'UTCI value is out of the defined zones.',
+    color: 'gray',
+    impact: 'none',
+    icon: '❓'
+  };
 }
 
 /**

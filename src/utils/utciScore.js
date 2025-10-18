@@ -14,7 +14,9 @@
 import { getUTCICategory } from './utci';
 
 // Ideal UTCI for running (in Fahrenheit)
-const IDEAL_UTCI = 47.0;
+const IDEAL_UTCI_MIN = 45.0;
+const IDEAL_UTCI_MAX = 49.0;
+const IDEAL_UTCI = (IDEAL_UTCI_MIN + IDEAL_UTCI_MAX) / 2; // Midpoint for reference
 
 // Multiplier to adjust the overall severity of score penalties.
 // 1.0 = standard penalties
@@ -24,7 +26,7 @@ const PENALTY_MULTIPLIER = 2;
 
 // UTCI ranges and their base penalties
 // These define how much the score decreases per degree away from ideal
-const UTCI_ZONES = [
+export const UTCI_ZONES = [
   // DANGEROUS COLD
   { min: -Infinity, max: -40, penalty: 2.5, label: 'Dangerous Cold' },
   { min: -40, max: -27.4, penalty: 2.2, label: 'Very Strong Cold' },
@@ -33,9 +35,10 @@ const UTCI_ZONES = [
   { min: -5.8, max: 8.6, penalty: 1.2, label: 'Moderate Cold' },
   { min: 8.6, max: 20, penalty: 1.0, label: 'Upper Moderate Cold' },
   { min: 20, max: 32, penalty: 0.8, label: 'Cold' },
-  { min: 32, max: IDEAL_UTCI, penalty: 0.5, label: 'Cool' },
-  // COMFORTABLE (Ideal is 47)
-  { min: IDEAL_UTCI, max: 60, penalty: 0.4, label: 'Comfortable Warm' },
+  { min: 32, max: IDEAL_UTCI_MIN, penalty: 0.5, label: 'Cool' },
+  // COMFORTABLE (Ideal is 45-49)
+  { min: IDEAL_UTCI_MIN, max: IDEAL_UTCI_MAX, penalty: 0, label: 'Ideal' },
+  { min: IDEAL_UTCI_MAX, max: 60, penalty: 0.4, label: 'Comfortable Warm' },
   { min: 60, max: 70, penalty: 0.6, label: 'Mildly Warm' },
   { min: 70, max: 78.8, penalty: 0.8, label: 'Warm' },
   // HEAT STRESS
@@ -70,8 +73,9 @@ export function calculateUTCIScore(utciF, precipRate = 0) {
   // Get UTCI category info
   const category = getUTCICategory(utciF);
 
-  // Calculate deviation from ideal
-  const deviation = Math.abs(utciF - IDEAL_UTCI);
+  // Calculate deviation from ideal range
+  const deviation = utciF < IDEAL_UTCI_MIN ? IDEAL_UTCI_MIN - utciF :
+                  utciF > IDEAL_UTCI_MAX ? utciF - IDEAL_UTCI_MAX : 0;
 
   // Find which zone this UTCI falls into
   const zone = UTCI_ZONES.find(z => utciF >= z.min && utciF < z.max);

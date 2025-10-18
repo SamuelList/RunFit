@@ -3012,6 +3012,7 @@ export default function App() {
           formattedPlaceName={formattedPlaceName}
           debugActive={debugActive}
           derived={derived}
+          wx={wx}
           condition={condition}
           gender={gender}
           displayedScoreProps={displayedScoreProps}

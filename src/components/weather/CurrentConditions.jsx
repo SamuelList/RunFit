@@ -1,7 +1,9 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { MapPin, Gauge, Sunrise as SunriseIcon, Sunset as SunsetIcon } from "lucide-react";
+import { MapPin, Gauge, Sunrise as SunriseIcon, Sunset as SunsetIcon, Wind, CloudRain, Sun } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent, SegmentedControl } from "../ui";
+import { getUTCIColorClasses } from "../../utils/utci";
+import { round1 } from "../../utils/helpers";
 
 /**
  * CurrentConditions Component
@@ -35,6 +37,7 @@ const CurrentConditions = ({
   formattedPlaceName,
   debugActive,
   derived,
+  wx,
   condition,
   gender,
   displayedScoreProps,
@@ -101,48 +104,56 @@ const CurrentConditions = ({
                   )}
                 </div>
                 
-                {/* Condition Badge with Performance Details */}
-                {derived && condition && (
+                {/* UTCI Condition Badge */}
+                {derived?.utciCategory && (
                   <motion.div
-                    className="group relative inline-block"
+                    className="group relative"
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.2, duration: 0.3 }}
                   >
-                    <span 
-                      className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium whitespace-normal sm:whitespace-nowrap shrink-0 cursor-help ${condition.badgeClass}`}
-                      title="Hover for performance details"
+                    <div 
+                      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium ${
+                        getUTCIColorClasses(derived.utciCategory.color).border
+                      } ${getUTCIColorClasses(derived.utciCategory.color).bg}`}
                     >
-                      {condition.text}
-                    </span>
-                    
-                    {/* Tooltip with performance and action details */}
-                    {condition.performance && condition.action && (
-                      <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute z-50 left-0 top-full mt-2 w-80 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-xl">
-                        <div className="space-y-3">
-                          <div>
-                            <div className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-                              Performance Impact
-                            </div>
-                            <div className="text-sm text-gray-700 dark:text-slate-300">
-                              {condition.performance}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-1">
-                              Recommended Actions
-                            </div>
-                            <div className="text-sm text-gray-700 dark:text-slate-300">
-                              {condition.action}
-                            </div>
-                          </div>
-                        </div>
-                        {/* Tooltip arrow */}
-                        <div className="absolute -top-1 left-4 h-2 w-2 rotate-45 border-l border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800" />
-                      </div>
-                    )}
+                      <span className={getUTCIColorClasses(derived.utciCategory.color).label}>
+                        UTCI {round1(derived.utci)}°
+                      </span>
+                      <span className={getUTCIColorClasses(derived.utciCategory.color).value}>
+                        {derived.utciCategory.label}
+                      </span>
+                    </div>
                   </motion.div>
                 )}
+                
+                {/* Weather Condition Badges */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {wx?.wind > 15 && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
+                      <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-100 px-2 py-1 text-xs font-medium text-sky-700 dark:border-sky-500/50 dark:bg-sky-500/10 dark:text-sky-300">
+                        <Wind className="h-3 w-3" />
+                        {round1(wx.wind)} mph
+                      </span>
+                    </motion.div>
+                  )}
+                  {wx?.precipProb > 40 && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
+                      <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700 dark:border-blue-500/50 dark:bg-blue-500/10 dark:text-blue-300">
+                        <CloudRain className="h-3 w-3" />
+                        {round1(wx.precipProb)}%
+                      </span>
+                    </motion.div>
+                  )}
+                  {wx?.uv > 6 && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
+                      <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700 dark:border-amber-500/50 dark:bg-amber-500/10 dark:text-amber-300">
+                        <Sun className="h-3 w-3" />
+                        UV {round1(wx.uv)}
+                      </span>
+                    </motion.div>
+                  )}
+                </div>
               </div>
 
               {/* Score & Twilight Row */}
