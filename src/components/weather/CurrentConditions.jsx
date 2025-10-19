@@ -19,6 +19,7 @@ import { round1 } from "../../utils/helpers";
  * @param {Object} props.place - Location object with lat/lon
  * @param {boolean} props.loading - Loading state
  * @param {string} props.formattedPlaceName - Formatted location name
+ * @param {string} props.lastUpdatedLabel - Last weather update timestamp label
  * @param {boolean} props.debugActive - Debug mode active flag
  * @param {Object} props.derived - Derived weather data
  * @param {Object} props.condition - Current running condition assessment
@@ -35,6 +36,7 @@ const CurrentConditions = ({
   place,
   loading,
   formattedPlaceName,
+  lastUpdatedLabel,
   debugActive,
   derived,
   wx,
@@ -80,6 +82,11 @@ const CurrentConditions = ({
                   <div className="flex items-center gap-2 mb-1">
                     <MapPin className="h-4 w-4 text-slate-400" />
                     <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Location</span>
+                    {lastUpdatedLabel && lastUpdatedLabel !== "—" && (
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                        (last updated {lastUpdatedLabel})
+                      </span>
+                    )}
                   </div>
                   <motion.button
                     onClick={handleLocationRefresh}

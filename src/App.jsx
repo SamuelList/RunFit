@@ -7,7 +7,7 @@ import { MapPin, Thermometer, Droplets, Wind, CloudRain, Sun, Hand, Info, Flame,
 import { RadialBarChart, RadialBar, PolarAngleAxis } from "recharts";
 
 // Utils
-import { computeSunEvents, calculateSolarElevation } from "./utils/solar";
+import { computeSunEvents, calculateSolarElevation, calculateMoonPosition } from "./utils/solar";
 import { calculateMRT, getMRTCategory, calculateEffectiveSolarTemp } from "./utils/mrt";
 import { calculateUTCI, getUTCICategory, getUTCIColorClasses } from "./utils/utci";
 import { GEAR_INFO, GEAR_ICONS } from "./utils/gearData";
@@ -707,7 +707,7 @@ function baseLayersForTemp(adjT, gender) {
   } else {
     base.add('split_shorts');
     base.add('cap');
-    if (gender === 'Female') base.add('tank_top');
+    base.add('tank_top');  // Everyone gets a tank top in hot weather
   }
 
   return base;
@@ -2036,6 +2036,14 @@ export default function App() {
   };
   
   const moonPhase = calculateMoonPhase(now);
+  
+  // Calculate moon position for visibility check
+  const moonPosition = calculateMoonPosition({
+    latitude: place.lat,
+    longitude: place.lon,
+    timestamp: now
+  });
+  
   const nextSunrise = sunriseMs.find((t) => t > now);
   const nextSunset = sunsetMs.find((t) => t > now);
   const nextDawn = dawnMs.find((t) => t > now);
@@ -2537,6 +2545,7 @@ export default function App() {
     twilight,
     forecast,
     moonPhase,
+    moonPosition, // Moon altitude, azimuth, visibility
     bestRunTimes,
     solarElevation, // Solar angle above horizon in degrees
     mrt: mrtData?.mrt, // Mean Radiant Temperature
@@ -2762,7 +2771,7 @@ export default function App() {
         </motion.header>
 
         {/* Smart Night Running Card - Shows at top when enabled and conditions are met */}
-        {smartNightCard && derived?.moonPhase && (() => {
+        {smartNightCard && derived?.moonPhase && derived?.moonPosition && (() => {
           const moonLight = derived.moonPhase.illuminationPct;
           const skyClarity = 100 - (wx?.cloud || 0);
           const humidity = wx?.humidity || 0;
@@ -2771,9 +2780,12 @@ export default function App() {
           const fogFactor = isFoggy ? 0.3 : humidity > 90 && tempDewDiff < 8 ? 0.6 : 1.0;
           const effectiveVis = Math.round((moonLight * skyClarity / 100) * fogFactor);
           const isNightTime = wx?.isDay === false;
+          const moonVis = derived.moonPosition.isVisible;
+          const moonAlt = derived.moonPosition.altitude;
+          const moonDir = derived.moonPosition.direction;
           
-          // Only show at top if it's nighttime and visibility > 75%
-          if (!isNightTime || effectiveVis <= 75) {
+          // Only show at top if it's nighttime, moon is visible, and visibility > 75%
+          if (!isNightTime || !moonVis || effectiveVis <= 75) {
             return null;
           }
           
@@ -2808,7 +2820,7 @@ export default function App() {
                         Excellent visibility tonight
                       </div>
                       <div className="text-sm text-gray-700 dark:text-slate-300 space-y-1">
-                        <p>Moon at {derived.moonPhase.illuminationPct}% illumination ({derived.moonPhase.name}) provides strong natural light.</p>
+                        <p>Moon at {derived.moonPhase.illuminationPct}% illumination ({derived.moonPhase.name}) is visible {moonAlt.toFixed(0)}° above horizon in the {moonDir}.</p>
                         <p>Clear skies ({skyClarity.toFixed(0)}% clarity) and good atmospheric conditions make this ideal for an evening run.</p>
                       </div>
                       <div className="mt-4 flex items-center gap-2 text-xs text-gray-600 dark:text-slate-400">
@@ -2856,6 +2868,7 @@ export default function App() {
           place={place}
           loading={loading}
           formattedPlaceName={formattedPlaceName}
+          lastUpdatedLabel={lastUpdatedLabel}
           debugActive={debugActive}
           derived={derived}
           wx={wx}

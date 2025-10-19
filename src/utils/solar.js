@@ -256,3 +256,124 @@ export function calculateSolarElevation({ latitude, longitude, timestamp = Date.
   
   return elevationDeg;
 }
+
+/**
+ * Calculate moon position (altitude and azimuth)
+ * Based on simplified lunar position algorithm
+ * @param {number} latitude - Latitude in degrees
+ * @param {number} longitude - Longitude in degrees  
+ * @param {number} timestamp - Time in milliseconds since epoch (default: now)
+ * @returns {object} { altitude: degrees above horizon, azimuth: degrees from north, isVisible: boolean }
+ */
+export function calculateMoonPosition({ latitude, longitude, timestamp = Date.now() }) {
+  if (typeof latitude !== "number" || typeof longitude !== "number") {
+    return null;
+  }
+
+  const date = new Date(timestamp);
+  
+  // Julian day calculation
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth() + 1;
+  const day = date.getUTCDate();
+  const hours = date.getUTCHours();
+  const minutes = date.getUTCMinutes();
+  const seconds = date.getUTCSeconds();
+  
+  const jd = julianDay(year, month, day);
+  const timeOfDay = hours / 24 + minutes / 1440 + seconds / 86400;
+  const jdTotal = jd + timeOfDay;
+  
+  // Days since J2000.0
+  const d = jdTotal - 2451545.0;
+  
+  // Simplified moon orbital elements
+  // Mean longitude
+  const L = wrap360(218.316 + 13.176396 * d);
+  // Mean anomaly
+  const M = wrap360(134.963 + 13.064993 * d);
+  // Mean distance (argument of latitude)
+  const F = wrap360(93.272 + 13.229350 * d);
+  
+  // Ecliptic longitude
+  const lonEcl = wrap360(
+    L + 
+    6.289 * Math.sin(degToRad(M)) +
+    1.274 * Math.sin(degToRad(2 * d - M)) +
+    0.658 * Math.sin(degToRad(2 * d)) +
+    0.214 * Math.sin(degToRad(2 * M))
+  );
+  
+  // Ecliptic latitude
+  const latEcl = 
+    5.128 * Math.sin(degToRad(F)) +
+    0.280 * Math.sin(degToRad(M + F)) +
+    0.277 * Math.sin(degToRad(M - F));
+  
+  // Obliquity of ecliptic
+  const obliq = 23.439 - 0.0000004 * d;
+  
+  // Convert ecliptic to equatorial coordinates
+  const lonEclRad = degToRad(lonEcl);
+  const latEclRad = degToRad(latEcl);
+  const obliqRad = degToRad(obliq);
+  
+  // Right ascension
+  const raRad = Math.atan2(
+    Math.sin(lonEclRad) * Math.cos(obliqRad) - Math.tan(latEclRad) * Math.sin(obliqRad),
+    Math.cos(lonEclRad)
+  );
+  const ra = radToDeg(raRad);
+  
+  // Declination
+  const decRad = Math.asin(
+    Math.sin(latEclRad) * Math.cos(obliqRad) + 
+    Math.cos(latEclRad) * Math.sin(obliqRad) * Math.sin(lonEclRad)
+  );
+  const dec = radToDeg(decRad);
+  
+  // Calculate local sidereal time
+  const gmst = wrap360(280.46061837 + 360.98564736629 * d + longitude);
+  const lst = gmst;
+  
+  // Hour angle
+  const ha = wrap360(lst - ra);
+  const haRad = degToRad(ha);
+  
+  // Convert to horizontal coordinates (altitude and azimuth)
+  const latRad = degToRad(latitude);
+  
+  // Altitude (elevation angle)
+  const sinAlt = Math.sin(latRad) * Math.sin(decRad) + 
+                 Math.cos(latRad) * Math.cos(decRad) * Math.cos(haRad);
+  const altitude = radToDeg(Math.asin(sinAlt));
+  
+  // Azimuth (bearing from north)
+  const azimuthRad = Math.atan2(
+    Math.sin(haRad),
+    Math.cos(haRad) * Math.sin(latRad) - Math.tan(decRad) * Math.cos(latRad)
+  );
+  const azimuth = wrap360(radToDeg(azimuthRad) + 180); // Convert to 0-360 from north
+  
+  // Moon is visible if altitude > -0.833 degrees (accounting for atmospheric refraction)
+  const isVisible = altitude > -0.833;
+  
+  return {
+    altitude: Math.round(altitude * 10) / 10, // Round to 1 decimal
+    azimuth: Math.round(azimuth * 10) / 10,
+    isVisible,
+    direction: getCardinalDirection(azimuth)
+  };
+}
+
+/**
+ * Convert azimuth to cardinal direction
+ * @param {number} azimuth - Azimuth in degrees (0-360)
+ * @returns {string} Cardinal direction (N, NE, E, SE, S, SW, W, NW)
+ */
+function getCardinalDirection(azimuth) {
+  const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  const index = Math.round(azimuth / 45) % 8;
+  return directions[index];
+}
+
