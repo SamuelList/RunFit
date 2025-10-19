@@ -392,19 +392,35 @@ export function calculateWBGT({ tempF, humidity, windMph, pressureHPa = null, so
   const rhDecimal = humidity / 100;
   const cloudFraction = cloudCover / 100;
   
-  // Use simplified WBGT approximation (Australian BoM method)
-  // WBGT ≈ 0.567×Ta + 0.393×e + 3.94 (where e = vapor pressure in hPa)
-  // This empirical formula is widely used and validated for meteorological purposes
+  // Enhanced WBGT calculation accounting for all environmental factors
+  // Based on Australian BoM method with adjustments for solar radiation, wind, and cloud cover
   
   // Calculate vapor pressure (Magnus formula)
   const eSat_hPa = 6.112 * Math.exp((17.67 * tempC) / (tempC + 243.5));
   const e_hPa = rhDecimal * eSat_hPa;
   
-  // Simplified WBGT formula (°C)
-  const wbgtSimple_C = 0.567 * tempC + 0.393 * e_hPa + 3.94;
-  const wbgtSimple_F = (wbgtSimple_C * 9) / 5 + 32;
+  // Base WBGT formula (°C): WBGT ≈ 0.567×Ta + 0.393×e + 3.94
+  let wbgt_C = 0.567 * tempC + 0.393 * e_hPa + 3.94;
   
-  return wbgtSimple_F;
+  // Solar radiation adjustment (increases heat stress)
+  if (solarRadiationWm2 != null && solarRadiationWm2 > 0) {
+    // Solar impact is moderated by cloud cover
+    // Peak solar (800-1000 W/m²) can add ~5-8°C to WBGT in full sun
+    const solarImpact = (solarRadiationWm2 / 1000) * 8 * (1 - cloudFraction * 0.7);
+    wbgt_C += solarImpact;
+  }
+  
+  // Wind cooling adjustment (reduces heat stress)
+  // Wind helps evaporative cooling - stronger wind = lower WBGT
+  // Wind above 1 m/s (2.2 mph) provides cooling benefit
+  if (windMs > 1) {
+    const windCooling = Math.min((windMs - 1) * 0.6, 4); // Cap at 4°C reduction
+    wbgt_C -= windCooling;
+  }
+  
+  const wbgt_F = (wbgt_C * 9) / 5 + 32;
+  
+  return wbgt_F;
 }
 
 // WBGT risk assessment based on research (ACSM, World Athletics, Outside Online)

@@ -13,7 +13,7 @@ import { calculateUTCI, getUTCICategory, getUTCIColorClasses } from "./utils/utc
 import { GEAR_INFO, GEAR_ICONS } from "./utils/gearData";
 import { APP_VERSION, DEFAULT_PLACE, DEFAULT_SETTINGS, FORECAST_ALERT_META, nominatimHeaders } from "./utils/constants";
 import { clamp, round1, msToMph, mmToInches, cToF, fToC, computeFeelsLike, blendWeather, getCurrentHourIndex } from "./utils/helpers";
-import { calculateRoadConditions, makeApproachTips } from "./utils/runScore";
+import { calculateRoadConditions, makeApproachTips, calculateWBGT } from "./utils/runScore";
 import { getUTCIScoreBreakdown } from "./utils/utciScore";
 import { getRunningCondition } from "./utils/conditions";
 import { scoreLabel, scoreTone, scoreBasedTone } from "./utils/scoring";
@@ -2333,6 +2333,16 @@ export default function App() {
   
   const utciCategory = utciData ? getUTCICategory(utciData.utci) : null;
   
+  // Calculate Wet Bulb Globe Temperature (WBGT) for heat stress assessment
+  const wbgtF = calculateWBGT({ 
+    tempF: tempFWx, 
+    humidity: wx.humidity, 
+    windMph: wx.wind, 
+    pressureHPa: wx.pressure, 
+    solarRadiationWm2: wx.solarRadiation, 
+    cloudCover: wx.cloud ?? 50 
+  });
+  
   // Calculate score based on UTCI (pass full utciData so breakdown shows components)
   const breakdown = utciData ? getUTCIScoreBreakdown(utciData, wx.precip || 0) : {
     score: 50,
@@ -2536,6 +2546,7 @@ export default function App() {
     utci: utciData?.utci, // Universal Thermal Climate Index
     utciCategory, // UTCI stress category
     utciRainAdjustment: utciData?.rainAdjustment, // Rain cooling effect
+    wbgt: wbgtF, // Wet Bulb Globe Temperature
     // Hour click handler for forecast
     onHourClick: (slot) => {
       setSelectedHourData(slot);
