@@ -117,31 +117,34 @@ export function calculateUTCIScore(utciF, precipRate = 0) {
   const uncappedScore = score;
   score = Math.max(0, Math.min(100, Math.round(score)));
   
-  // Console log the calculation breakdown
-  console.log('========================================');
-  console.log('🎯 UTCI SCORE CALCULATION');
-  console.log('========================================');
-  console.log(`📊 Input:`);
-  console.log(`  • UTCI: ${utciF.toFixed(1)}°F`);
-  console.log(`  • Ideal UTCI: ${IDEAL_UTCI}°F`);
-  console.log(`  • Penalty Multiplier: x${PENALTY_MULTIPLIER}`);
-  console.log(``);
-  console.log(`📐 Calculation:`);
-  console.log(`  • Deviation from ideal: ${deviation.toFixed(1)}°F ${utciF > IDEAL_UTCI ? 'warmer' : 'cooler'}`);
-  console.log(`  • Thermal zone: ${zone.label}`);
-  console.log(`  • Zone penalty rate: ${zone.penalty} x ${PENALTY_MULTIPLIER} = ${zonePenaltyRate.toFixed(2)} pts/°F`);
-  console.log(``);
-  console.log(`💯 Score Breakdown:`);
-  console.log(`  • Starting score: 100`);
-  console.log(`  • Base penalty: ${deviation.toFixed(1)}°F × ${zonePenaltyRate.toFixed(2)} = -${basePenalty.toFixed(2)} pts`);
-  if (extremePenalty > 0) {
-    console.log(`  • Extreme condition penalty: -${extremePenalty.toFixed(2)} pts`);
+  // Console log the calculation breakdown (disabled by default - too verbose with 48 hourly calculations)
+  const DEBUG_UTCI_SCORE = false; // Set to true to enable detailed logging
+  if (DEBUG_UTCI_SCORE) {
+    console.log('========================================');
+    console.log('🎯 UTCI SCORE CALCULATION');
+    console.log('========================================');
+    console.log(`📊 Input:`);
+    console.log(`  • UTCI: ${utciF.toFixed(1)}°F`);
+    console.log(`  • Ideal UTCI: ${IDEAL_UTCI}°F`);
+    console.log(`  • Penalty Multiplier: x${PENALTY_MULTIPLIER}`);
+    console.log(``);
+    console.log(`📐 Calculation:`);
+    console.log(`  • Deviation from ideal: ${deviation.toFixed(1)}°F ${utciF > IDEAL_UTCI ? 'warmer' : 'cooler'}`);
+    console.log(`  • Thermal zone: ${zone.label}`);
+    console.log(`  • Zone penalty rate: ${zone.penalty} x ${PENALTY_MULTIPLIER} = ${zonePenaltyRate.toFixed(2)} pts/°F`);
+    console.log(``);
+    console.log(`💯 Score Breakdown:`);
+    console.log(`  • Starting score: 100`);
+    console.log(`  • Base penalty: ${deviation.toFixed(1)}°F × ${zonePenaltyRate.toFixed(2)} = -${basePenalty.toFixed(2)} pts`);
+    if (extremePenalty > 0) {
+      console.log(`  • Extreme condition penalty: -${extremePenalty.toFixed(2)} pts`);
+    }
+    console.log(`  • Subtotal: ${uncappedScore.toFixed(2)}`);
+    console.log(`  • Final score (capped 0-100): ${score}`);
+    console.log(``);
+    console.log(`📝 Summary: ${zone.label} conditions (${category.label})`);
+    console.log('========================================');
   }
-  console.log(`  • Subtotal: ${uncappedScore.toFixed(2)}`);
-  console.log(`  • Final score (capped 0-100): ${score}`);
-  console.log(``);
-  console.log(`📝 Summary: ${zone.label} conditions (${category.label})`);
-  console.log('========================================');
 
   return {
     score,

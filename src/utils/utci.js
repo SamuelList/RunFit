@@ -449,30 +449,32 @@ export function calculateUTCI({
   // Calculate vapor pressure
   const vaporPressure = calculateVaporPressure(tempC, humidity);
   
-  // Calculate baseline UTCI (dry conditions)
-  const utciC = calculateUTCIPolynomial(tempC, vaporPressure, windMs, constrainedMrtC);
+  // UTCI polynomial is unreliable - use enhanced apparent temperature instead
+  // This combines multiple proven thermal comfort factors:
+  // 1. Base temperature
+  // 2. Humidity effect (vapor pressure)
+  // 3. Wind chill
+  // 4. Radiant heat (MRT difference from air temp)
   
-  // Sanity check: UTCI should be within a physically plausible range.
-  // If calculation produces an invalid or wildly unrealistic result, fall back to a simple apparent temperature.
-  // Acceptable UTCI (°C) operational range for human outdoor conditions: roughly -50°C to +60°C.
-  if (!Number.isFinite(utciC) || utciC < -50 || utciC > 60) {
-    // Simple apparent temperature as fallback
-    const apparentC = tempC + 0.33 * vaporPressure - 0.7 * windMs - 4.0;
-    return {
-      utci: (apparentC * 9 / 5) + 32,
-      utciDry: (apparentC * 9 / 5) + 32,
-      rainAdjustment: 0,
-      precipIntensity: 'none',
-      category: getUTCICategory((apparentC * 9 / 5) + 32),
-      components: {
-        airTemp: tempF,
-        mrt: mrt || tempF,
-        humidity,
-        windMph,
-        precipRate
-      }
-    };
-  }
+  const deltaT = constrainedMrtC - tempC;
+  
+  // Enhanced apparent temperature formula
+  // Based on Australian Apparent Temperature but adapted for running
+  let utciC = tempC;
+  
+  // Add humidity effect (increases perceived warmth)
+  utciC += 0.33 * vaporPressure;
+  
+  // Add wind cooling effect (always reduces perceived temp)
+  utciC -= 0.7 * windMs;
+  
+  // Add radiant temperature effect (MRT difference from air temp)
+  // When MRT > air temp (sunny): feels warmer
+  // When MRT < air temp (shade/night): feels cooler
+  utciC += 0.4 * deltaT;
+  
+  // Baseline adjustment for typical outdoor conditions
+  utciC -= 4.0;
   
   const utciF = (utciC * 9 / 5) + 32;
   

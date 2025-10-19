@@ -154,6 +154,23 @@ export function useWeatherData(place, setPlace, unit) {
           pressure: data?.hourly?.surface_pressure?.[hIdx],
           solarRadiation: data?.hourly?.shortwave_radiation?.[hIdx],
         });
+
+        // Calculate solar elevation for this hourly slot
+        const slotSolarElevation = computeSunEvents({
+          timestamp: Date.parse(times[hIdx]),
+          latitude: p.lat,
+          longitude: p.lon,
+          timeZone: timezone,
+        }).solarElevation;
+
+        // Log a warning if solarRadiation is 0 or undefined but solarElevation is positive
+        if ((data?.hourly?.shortwave_radiation?.[hIdx] === 0 || data?.hourly?.shortwave_radiation?.[hIdx] === undefined) && slotSolarElevation > 0) {
+          console.warn(
+            `⚠️ Hourly forecast for ${new Date(times[hIdx]).toISOString()}: ` +
+            `solarRadiation is ${data?.hourly?.shortwave_radiation?.[hIdx]} but solarElevation is ${slotSolarElevation}. ` +
+            `This may lead to an inaccurate MRT for this hour if solar data is missing.`
+          );
+        }
       }
 
       const primaryWx = {

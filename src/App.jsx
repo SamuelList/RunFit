@@ -1,3 +1,6 @@
+// please use and or create other files at all cost, we are trying to reduce the size of App.jsx
+
+
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MapPin, Thermometer, Droplets, Wind, CloudRain, Sun, Hand, Info, Flame, Sunrise as SunriseIcon, Sunset as SunsetIcon, Settings as SettingsIcon, Crosshair, Moon, X, TrendingUp, Cloud, CloudFog, UserRound, Calendar, Lightbulb, Activity, Clock, Gauge } from "lucide-react";
@@ -401,6 +404,20 @@ function logWeatherDebug(weatherData, raw, location, unit) {
     mrt: mrtData?.mrt || temperature,
     precipRate: precip || 0
   });
+
+  // Debug UTCI inputs (disabled to reduce console noise)
+  // console.log('🔍 UTCI INPUTS DEBUG at', new Date().toISOString(), ':', {
+  //   tempF: temperature,
+  //   humidity: humidity || 50,
+  //   windMph: wind || 0,
+  //   mrt: mrtData?.mrt || temperature,
+  //   precipRate: precip || 0,
+  //   mrtData: mrtData,
+  //   solarElevation: solarElevation,
+  //   cloud: raw.cloud,
+  //   solarRadiation: raw.solarRadiation,
+  //   timestamp: now
+  // });
 
   // Calculate dew point
   const dewPointC = tempC != null && humidity != null 
@@ -1263,7 +1280,7 @@ export default function App() {
   const [tomorrowRunType, setTomorrowRunType] = useState(initialSettings.tomorrowRunType);
   const [smartNightCard, setSmartNightCard] = useState(initialSettings.smartNightCard ?? true);
   const [tomorrowCardRunType, setTomorrowCardRunType] = useState(initialSettings.tomorrowRunType);
-  const [tomorrowCardOption, setTomorrowCardOption] = useState('A'); // 'A' = Performance, 'B' = Comfort
+  const [tomorrowCardOption, setTomorrowCardOption] = useState('A'); // 'A' = Performance, 'B' = Comfort, 'C' = A.I.
   const [lastUpdated, setLastUpdated] = useState(null);
   const [debugActive, setDebugActive] = useState(false);
   const [debugInputs, setDebugInputs] = useState({
@@ -1313,43 +1330,41 @@ export default function App() {
     try {
       // Check if geolocation is available
       if (!("geolocation" in navigator) || !window.isSecureContext) {
-        // Fallback: just refresh current place
-        await fetchWeather(place, unit);
-        setShowRefreshToast(true);
-        setTimeout(() => setShowRefreshToast(false), 2000);
-        setLoading(false);
-        return;
-      }
-
-      // Get current position
-      const pos = await new Promise((resolve, reject) => 
-        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 })
-      );
-      const { latitude, longitude } = pos.coords;
-      
-      // Set temporary location and fetch weather immediately
-      const p = { name: "Current location", lat: latitude, lon: longitude, source: 'gps' };
-      setPlace(p); 
-      setQuery("Current location");
-      fetchWeather(p, unit); // Don't await, let it run
-      
-      // Get better name in background
-      reverseGeocode(latitude, longitude);
-      
-      setShowRefreshToast(true);
-      setTimeout(() => setShowRefreshToast(false), 2000);
-    } catch (err) {
-      console.error("Geolocation error:", err);
       // Fallback: just refresh current place
       await fetchWeather(place, unit);
       setShowRefreshToast(true);
       setTimeout(() => setShowRefreshToast(false), 2000);
-    } finally {
       setLoading(false);
+      return;
     }
-  };
 
-  // Save settings to localStorage whenever they change
+    // Get current position
+    const pos = await new Promise((resolve, reject) => 
+      navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 })
+    );
+    const { latitude, longitude } = pos.coords;
+    
+    // Set temporary location and fetch weather immediately
+    const p = { name: "Current location", lat: latitude, lon: longitude, source: 'gps' };
+    setPlace(p); 
+    setQuery("Current location");
+    await fetchWeather(p, unit); // Await here to ensure loading is correct
+    
+    // Get better name in background
+    reverseGeocode(latitude, longitude);
+    
+    setShowRefreshToast(true);
+    setTimeout(() => setShowRefreshToast(false), 2000);
+  } catch (err) {
+    console.error("Geolocation error:", err);
+    // Fallback: just refresh current place
+    await fetchWeather(place, unit);
+    setShowRefreshToast(true);
+    setTimeout(() => setShowRefreshToast(false), 2000);
+  } finally {
+    setLoading(false);
+  }
+};  // Save settings to localStorage whenever they change
   useEffect(() => {
     const settings = {
       place,
@@ -1494,6 +1509,13 @@ export default function App() {
     const value = event?.target?.value ?? "";
     setDebugInputs((prev) => ({ ...prev, [field]: value }));
   };
+
+  // Handler for when an outfit item is clicked in the OutfitRecommendation or Gear Guide
+  // Opens the outfit detail modal (or toggles it closed if already selected)
+  const handleOutfitItemClick = useCallback((itemKey) => {
+    if (!itemKey) return;
+    setSelectedOutfitItem((prev) => (prev === itemKey ? null : itemKey));
+  }, []);
 
   // Animation Variants
   const pageVariants = {
@@ -1671,49 +1693,70 @@ export default function App() {
     }
   };
 
-  const ipLocationFallback = async () => {
+  const ipLocationFallback = async (returnPlace = false) => {
     try {
       const res = await fetch("https://ipapi.co/json/");
       const d = await res.json();
       if (!d?.latitude) throw new Error("IP API failed");
       const nameGuess = d.city && d.region ? `${d.city}, ${d.region}` : "Approximate location";
       const p = { name: nameGuess, lat: d.latitude, lon: d.longitude, source: 'ip' };
-      setPlace(p); setQuery(p.name); await fetchWeather(p, unit);
+      setPlace(p); setQuery(p.name);
       setError("Using approximate location. For GPS, enable location permissions.");
+      if (returnPlace) return p; // Return the place object if requested
+      else await fetchWeather(p, unit);
     } catch (e) {
       setError("Couldn't get your location. Please search a city.");
-      await fetchWeather(DEFAULT_PLACE, unit);
+      if (returnPlace) return DEFAULT_PLACE; // Return default place on error
+      else await fetchWeather(DEFAULT_PLACE, unit);
     }
   };
 
-  const tryGeolocate = async () => {
+  const tryGeolocate = async (initialLoad = false) => {
     setError("");
+    let fetchedPlace = null;
     try {
-      if (!("geolocation" in navigator) || !window.isSecureContext) { await ipLocationFallback(); return; }
-      const pos = await new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 }));
-      const { latitude, longitude } = pos.coords;
-      
-      // Set a temporary name and start weather fetch immediately
-      const p = { name: "Current location", lat: latitude, lon: longitude, source: 'gps' };
-      setPlace(p); 
-      setQuery("Current location");
-      await fetchWeather(p, unit); // Wait for weather to load
+      if (!("geolocation" in navigator) || !window.isSecureContext) { 
+        fetchedPlace = await ipLocationFallback(true); // true to return place
+      } else {
+        const pos = await new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 }));
+        const { latitude, longitude } = pos.coords;
+        
+        const p = { name: "Current location", lat: latitude, lon: longitude, source: 'gps' };
+        setPlace(p); 
+        setQuery("Current location");
+        fetchedPlace = p;
 
-      // Now, try to get a better name without blocking the UI
-      reverseGeocode(latitude, longitude);
-
-    } catch (err) { await ipLocationFallback(); }
+        // Try to get a better name without blocking the UI
+        reverseGeocode(latitude, longitude);
+      }
+    } catch (err) { 
+      console.warn("Geolocation attempt failed, falling back to IP or default.", err);
+      fetchedPlace = await ipLocationFallback(true);
+    } finally {
+      if (fetchedPlace) {
+        await fetchWeather(fetchedPlace, unit);
+      } else {
+        // Fallback to default place if all geolocation attempts fail
+        await fetchWeather(DEFAULT_PLACE, unit);
+      }
+      if (initialLoad) {
+        setInitializing(false);
+      }
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     (async () => {
       setInitializing(true);
+      setLoading(true);
       try {
-        await tryGeolocate();
+        await tryGeolocate(true);
       } catch (e) {
         console.warn('Initial geolocation failed', e);
       } finally {
         setInitializing(false);
+        setLoading(false);
       }
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1748,6 +1791,7 @@ export default function App() {
   };
 
   const derived = useMemo(() => {
+  // console.log('🔥 DERIVED USEMEMO RUNNING at', new Date().toISOString());
   if (!wx) return null;
   
   // Derive workout and longRun from runType for backward compatibility
@@ -2161,6 +2205,25 @@ export default function App() {
         precipRate: slotPrecip || 0
       });
 
+      // Debug log for problematic UTCI calculations
+      const utciF = slotUtciData?.utci;
+      if (utciF && (Math.abs(utciF) > 100 || Math.abs(utciF - slotTempF) > 50)) {
+        console.warn(`🐛 PROBLEMATIC UTCI at ${slot.time}:`, {
+          hourIndex: idx,
+          airTemp: slotTempF,
+          mrt: slotMrtData?.mrt,
+          mrtEnhancement: slotMrtData?.enhancement,
+          humidity: slotHumidity,
+          wind: slotWind,
+          solarRadiation: slot.solarRadiation,
+          solarElevation: slotSolarElevation,
+          cloudCover: slotCloud,
+          utci: utciF,
+          utciDeviation: utciF - slotTempF,
+          mrtComponents: slotMrtData
+        });
+      }
+
       const slotBreakdown = slotUtciData ? getUTCIScoreBreakdown(slotUtciData, slotPrecip || 0) : {
         score: 50,
         label: 'Unknown',
@@ -2225,13 +2288,13 @@ export default function App() {
     })
     .filter(Boolean);
   
-  // Calculate solar elevation angle
+  // Calculate solar elevation angle (round to reduce jitter)
   const solarElevation = place?.lat != null && place?.lon != null
-    ? calculateSolarElevation({
+    ? Math.round(calculateSolarElevation({
         latitude: place.lat,
         longitude: place.lon,
         timestamp: now,
-      })
+      }) * 10) / 10 // Round to 0.1 degree precision
     : null;
   
   // Calculate Mean Radiant Temperature (MRT)
@@ -2244,6 +2307,12 @@ export default function App() {
     windMph: wx.wind
   });
   
+  // Round MRT to reduce jitter
+  if (mrtData) {
+    mrtData.mrt = Math.round(mrtData.mrt * 10) / 10;
+    if (mrtData.enhancement) mrtData.enhancement = Math.round(mrtData.enhancement * 10) / 10;
+  }
+  
   const mrtCategory = mrtData ? getMRTCategory(mrtData.mrt, tempFWx) : null;
   const effectiveSolarTemp = mrtData ? calculateEffectiveSolarTemp(tempFWx, mrtData.mrt, wx.wind) : null;
   
@@ -2255,6 +2324,12 @@ export default function App() {
     mrt: mrtData?.mrt || tempFWx,
     precipRate: wx.precip || 0 // inches per hour
   });
+  
+  // Round UTCI to reduce jitter
+  if (utciData) {
+    utciData.utci = Math.round(utciData.utci * 10) / 10;
+    if (utciData.adjustment) utciData.adjustment = Math.round(utciData.adjustment * 10) / 10;
+  }
   
   const utciCategory = utciData ? getUTCICategory(utciData.utci) : null;
   
@@ -2304,7 +2379,6 @@ export default function App() {
     
     for (const slot of wx.hourlyForecast) {
       if (!slot || !slot.time) continue;
-      
       const slotTime = typeof slot.time === 'number' ? slot.time : Date.parse(slot.time);
       if (!Number.isFinite(slotTime)) continue;
       
@@ -2339,7 +2413,7 @@ export default function App() {
         cloudCover: slotCloud || 50,
         windMph: slotWind || 0
       });
-      
+
       const slotUtciData = calculateUTCI({
         tempF: slotTempF,
         humidity: slotHumidity || 50,
@@ -2348,7 +2422,20 @@ export default function App() {
         precipRate: slotPrecip || 0
       });
       
-      const slotBreakdown = slotUtciData ? getUTCIScoreBreakdown(slotUtciData.utci, slotPrecip || 0) : {
+      console.log(`📊 HOURLY UTCI INPUTS DEBUG for ${new Date(slot.time).toISOString()} at`, {
+        tempF: parseFloat(slotTempF?.toFixed(1)) ?? 0,
+        humidity: parseFloat(slotHumidity?.toFixed(0)) ?? 0,
+        windMph: parseFloat(slotWind?.toFixed(1)) ?? 0,
+        mrt: parseFloat(slotMrtData?.mrt?.toFixed(1)) ?? 0,
+        precipRate: parseFloat(slotPrecip?.toFixed(2)) ?? 0,
+        cloudCover: parseFloat(slotCloud?.toFixed(0)) ?? 0,
+        solarElevation: parseFloat(slotSolarElevation?.toFixed(1)) ?? 0,
+        solarRadiation: parseFloat(slot.solarRadiation?.toFixed(0)) ?? 0,
+        utci: parseFloat(slotUtciData?.utci?.toFixed(1)) ?? 0,
+        utciAdjustment: parseFloat(slotUtciData?.adjustment?.toFixed(1)) ?? 0,
+      });
+
+      const slotBreakdown = slotUtciData ? getUTCIScoreBreakdown(slotUtciData, slotPrecip || 0) : {
         score: 50,
         label: 'Unknown',
         useWBGT: false,
@@ -2357,7 +2444,7 @@ export default function App() {
         total: 100,
         dominantKeys: []
       };
-      
+
       const slotScore = slotBreakdown.score;
       
       const candidate = {
@@ -2537,20 +2624,6 @@ export default function App() {
   default: return { text: 'Default', tone: 'bg-slate-100 text-slate-700 border-slate-200' };
     }
   }, [place?.source]);
-
-  const apparentForCondition = derived && Number.isFinite(derived.displayApparent)
-    ? Math.round(derived.displayApparent)
-    : null;
-  
-  // Use WBGT for warm weather (≥50°F feels-like), feels-like for cold weather
-  const useWBGTForCondition = apparentForCondition != null && apparentForCondition >= 50;
-  const conditionTemp = useWBGTForCondition 
-    ? (derived?.wbgtF != null ? Math.round(derived.wbgtF) : apparentForCondition)
-    : apparentForCondition;
-  
-  const condition = derived && conditionTemp != null
-    ? getRunningCondition(conditionTemp, useWBGTForCondition)
-    : null;
 
   const weatherSourceLabel = useMemo(() => {
     const providerList = wx?.sources ? Object.values(wx.sources).map((s) => s.provider).filter(Boolean) : [];
@@ -2775,7 +2848,6 @@ export default function App() {
           debugActive={debugActive}
           derived={derived}
           wx={wx}
-          condition={condition}
           gender={gender}
           displayedScoreProps={displayedScoreProps}
           error={error}
@@ -2822,77 +2894,89 @@ export default function App() {
                           <div className="h-1.5 w-1.5 rounded-full bg-emerald-500"></div>
                           <CardTitle className="text-base">{optionTitle}</CardTitle>
                         </div>
-                        {optionsDiffer && (
-                          <SegmentedControl
-                            value={activeOption}
-                            onChange={setActiveOption}
-                            options={[
-                              { label: "Performance", value: "A" },
-                              { label: "Comfort", value: "B" },
-                            ]}
-                          />
-                        )}
+                        <SegmentedControl
+                          value={activeOption}
+                          onChange={setActiveOption}
+                          options={[
+                            { label: "Performance", value: "A" },
+                            { label: "Comfort", value: "B" },
+                            { label: "A.I. (beta)", value: "C" },
+                          ]}
+                        />
                       </div>
                     </CardHeader>
                     <CardContent className="p-4">
                       {derived ? (
                         <>
-                          <motion.div 
-                            className="space-y-2"
-                            variants={staggerContainer}
-                            initial="initial"
-                            animate="animate"
-                          >
-                            {activeItems.map((item, idx) => (
-                              <motion.div 
-                                key={item.key} 
-                                className="group relative rounded-xl border border-gray-200/60 dark:border-slate-700/60 bg-gradient-to-br from-white to-gray-50/30 dark:from-slate-800/40 dark:to-slate-900/40 px-4 py-3 transition-all hover:shadow-sm hover:border-gray-300 dark:hover:border-slate-600 cursor-pointer"
-                                variants={listItemVariants}
-                                whileHover={{ x: 4, transition: { duration: 0.2 } }}
-                                onClick={() => setSelectedOutfitItem(item.key)}
-                              >
-                                <div className="flex items-center justify-between gap-3">
-                                  <div className="flex items-center gap-3">
-                                    {(() => {
-                                      const gearInfo = GEAR_INFO[item.key];
-                                      const Icon = GEAR_ICONS[item.key] || UserRound;
-                                      return gearInfo?.image ? (
-                                        <img 
-                                          src={gearInfo.image} 
-                                          alt={item.label} 
-                                          className="h-10 w-10 rounded-lg object-cover"
-                                        />
-                                      ) : (
-                                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 dark:bg-slate-700">
-                                          <Icon className="h-5 w-5 text-gray-600 dark:text-slate-300" />
-                                        </div>
-                                      );
-                                    })()}
-                                    <span className="text-sm font-semibold text-gray-800 dark:text-slate-100">{item.label}</span>
-                                  </div>
-                                  {(item.coldHands || item.workout || item.longRun) && (
-                                    <div className="flex items-center gap-1">
-                                      {item.workout && (
-                                        <span className="inline-flex items-center gap-1 rounded-full border border-amber-200/60 dark:border-amber-500/40 bg-amber-50/80 dark:bg-amber-500/20 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
-                                          <Flame className="h-3 w-3" /> Workout
-                                        </span>
-                                      )}
-                                      {item.longRun && (
-                                        <span className="inline-flex items-center gap-1 rounded-full border border-indigo-200/60 dark:border-indigo-500/40 bg-indigo-50/80 dark:bg-indigo-500/20 px-2 py-0.5 text-[10px] font-medium text-indigo-700 dark:text-indigo-300">
-                                          <TrendingUp className="h-3 w-3" /> Long
-                                        </span>
-                                      )}
-                                      {item.coldHands && (
-                                        <span className="inline-flex items-center gap-1 rounded-full border border-sky-200/60 dark:border-sky-500/40 bg-sky-50/80 dark:bg-sky-500/20 px-2 py-0.5 text-[10px] font-medium text-sky-700 dark:text-sky-300">
-                                          <Hand className="h-3 w-3" /> Cold
-                                        </span>
-                                      )}
+                          {activeOption === 'C' ? (
+                            <motion.div 
+                              key="C" 
+                              initial={{ opacity: 0, y: 20 }} 
+                              animate={{ opacity: 1, y: 0 }} 
+                              exit={{ opacity: 0, y: -20 }} 
+                              className="text-center p-8"
+                            >
+                              <p className="text-lg font-semibold text-gray-700 dark:text-gray-300">A.I. recommendations are coming soon!</p>
+                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">This feature will provide personalized gear suggestions based on your running history and preferences.</p>
+                            </motion.div>
+                          ) : (
+                            <motion.div 
+                              className="space-y-2"
+                              variants={staggerContainer}
+                              initial="initial"
+                              animate="animate"
+                            >
+                              {activeItems.map((item) => (
+                                <motion.div 
+                                  key={item.key} 
+                                  className="group relative rounded-xl border border-gray-200/60 dark:border-slate-700/60 bg-gradient-to-br from-white to-gray-50/30 dark:from-slate-800/40 dark:to-slate-900/40 px-4 py-3 transition-all hover:shadow-sm hover:border-gray-300 dark:hover:border-slate-600 cursor-pointer"
+                                  variants={listItemVariants}
+                                  whileHover={{ x: 4, transition: { duration: 0.2 } }}
+                                  onClick={() => setSelectedOutfitItem(item.key)}
+                                >
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-3">
+                                      {(() => {
+                                        const gearInfo = GEAR_INFO[item.key];
+                                        const Icon = GEAR_ICONS[item.key] || UserRound;
+                                        return gearInfo?.image ? (
+                                          <img 
+                                            src={gearInfo.image} 
+                                            alt={item.label} 
+                                            className="h-10 w-10 rounded-lg object-cover"
+                                          />
+                                        ) : (
+                                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 dark:bg-slate-700">
+                                            <Icon className="h-5 w-5 text-gray-600 dark:text-slate-300" />
+                                          </div>
+                                        );
+                                      })()}
+                                      <span className="text-sm font-semibold text-gray-800 dark:text-slate-100">{item.label}</span>
                                     </div>
-                                  )}
-                                </div>
-                              </motion.div>
-                            ))}
-                          </motion.div>
+                                    {(item.coldHands || item.workout || item.longRun) && (
+                                      <div className="flex items-center gap-1">
+                                        {item.workout && (
+                                          <span className="inline-flex items-center gap-1 rounded-full border border-amber-200/60 dark:border-amber-500/40 bg-amber-50/80 dark:bg-amber-500/20 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                                            <Flame className="h-3 w-3" /> Workout
+                                          </span>
+                                        )}
+                                        {item.longRun && (
+                                          <span className="inline-flex items-center gap-1 rounded-full border border-indigo-200/60 dark:border-indigo-500/40 bg-indigo-50/80 dark:bg-indigo-500/20 px-2 py-0.5 text-[10px] font-medium text-indigo-700 dark:text-indigo-300">
+                                            <TrendingUp className="h-3 w-3" /> Long
+                                          </span>
+                                        )}
+                                        {item.coldHands && (
+                                          <span className="inline-flex items-center gap-1 rounded-full border border-sky-200/60 dark:border-sky-500/40 bg-sky-50/80 dark:bg-sky-500/20 px-2 py-0.5 text-[10px] font-medium text-sky-700 dark:text-sky-300">
+                                            <Hand className="h-3 w-3" /> Cold
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </motion.div>
+                              ))}
+                            </motion.div>
+                          )}
                           
                           {!optionsDiffer ? (
                             <motion.div 
@@ -2903,13 +2987,11 @@ export default function App() {
                             >
                               <div className="flex items-start gap-2">
                                 <div className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/20 dark:bg-emerald-500/30 mt-0.5">
-                                  <svg className="h-3 w-3 text-emerald-600 dark:text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
+                                  <svg className="h-3 w-3 text-emerald-600 dark:text-emerald-400" fill="currentColor" viewBox="0 0 24 24">
                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
                                   </svg>
                                 </div>
-                                <p className="text-xs font-medium leading-relaxed text-emerald-800 dark:text-emerald-200">
-                                  Perfect alignment! Performance and comfort recommendations match today—this outfit optimizes both.
-                                </p>
+                                <p className="text-sm font-semibold">Perfect alignment! Performance and comfort recommendations match today—this outfit optimizes both.</p>
                               </div>
                             </motion.div>
                           ) : (
@@ -2921,7 +3003,7 @@ export default function App() {
                             >
                               <div className="flex items-start gap-2">
                                 <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
-                                <p className="text-xs font-medium leading-relaxed text-blue-800 dark:text-blue-200">
+                                <p className="text-sm font-semibold leading-relaxed text-blue-800 dark:text-blue-200">
                                   {activeOption === "A" 
                                     ? "Performance-focused: Optimized for speed and efficiency. May sacrifice some warmth/comfort."
                                     : "Comfort-focused: Prioritizes warmth and protection. May feel slightly overdressed during hard efforts."}
@@ -3135,7 +3217,7 @@ export default function App() {
                         className={`rounded-lg px-3 py-3 text-sm font-medium transition-all ${
                           isSelected
                             ? 'bg-sky-600 text-white shadow-lg ring-2 ring-sky-400'
-                            : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/30'
+                            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/30'
                         }`}
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
@@ -3265,7 +3347,7 @@ export default function App() {
                           />
                         ) : (
                           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
-                            <Icon className="h-6 w-6 text-white" />
+                            <Icon className="h-7 w-7 text-white" />
                           </div>
                         )}
                         <div>
@@ -3291,7 +3373,7 @@ export default function App() {
                         <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 mb-1">When to Wear</h4>
                         <p className="text-sm text-slate-600 dark:text-slate-300">{item.whenToWear}</p>
                       </div>
-                      <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/20 p-3">
+                      <div className="rounded-lg border border-blue-200/60 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/20 p-3">
                         <div className="flex items-center gap-2 mb-2">
                           <Thermometer className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                           <h4 className="text-sm font-bold text-blue-900 dark:text-blue-100">Temperature Range</h4>
@@ -3367,26 +3449,18 @@ export default function App() {
                     </div>
                     <div className="p-6 space-y-4">
                       <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300 mb-1">Description</div>
-                        <p className="text-sm text-slate-700 dark:text-slate-300">{item.description}</p>
-                      </div>
-                      <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300 mb-1">When to Wear</div>
-                        <p className="text-sm text-slate-700 dark:text-slate-300">{item.whenToWear}</p>
-                      </div>
-                      <div className="rounded-lg bg-sky-100 dark:bg-sky-900/40 p-3">
-                        <div className="text-xs font-semibold uppercase tracking-wide text-sky-800 dark:text-sky-200 mb-1 flex items-center gap-1">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300 mb-1 flex items-center gap-1">
                           <Thermometer className="h-3 w-3" />
                           Temperature Range
                         </div>
                         <p className="text-sm font-medium text-sky-900 dark:text-sky-100">{item.tempRange}</p>
                       </div>
-                      <div className="rounded-lg bg-emerald-100 dark:bg-emerald-900/40 p-3">
-                        <div className="text-xs font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-200 mb-1 flex items-center gap-1">
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300 mb-1 flex items-center gap-1">
                           <Lightbulb className="h-3 w-3" />
                           Pro Tips
                         </div>
-                        <p className="text-sm text-emerald-900 dark:text-emerald-100">{item.tips}</p>
+                        <p className="text-sm text-sky-900 dark:text-sky-100">{item.tips}</p>
                       </div>
                     </div>
                   </>
@@ -4088,29 +4162,17 @@ export default function App() {
                     <Button 
                       size="sm" 
                       variant="outline"
-                      onClick={() => setDebugInputs(prev => ({ ...prev, debugTimeHour: "23" }))}
+                      onClick={() => setDebugInputs(prev => ({ ...prev, debugTimeHour: "" }))}
                       className="text-xs"
                     >
-                      11 PM (Late)
+                      ❌ Clear override
                     </Button>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:text-xs">Current hour (0-23, leave empty for real time)</label>
-                    <Input 
-                      type="number" 
-                      min="0" 
-                      max="23" 
-                      value={debugInputs.debugTimeHour || ""} 
-                      onChange={handleDebugInput('debugTimeHour')} 
-                      placeholder="e.g., 17 for 5 PM" 
-                      className="h-9 text-sm" 
-                    />
-                    {debugInputs.debugTimeHour !== undefined && debugInputs.debugTimeHour !== "" && (
-                      <div className="text-xs text-purple-600 dark:text-purple-400">
-                        Testing as {parseInt(debugInputs.debugTimeHour) % 12 || 12}{parseInt(debugInputs.debugTimeHour) >= 12 ? ' PM' : ' AM'} - Card will appear {parseInt(debugInputs.debugTimeHour) >= 17 && parseInt(debugInputs.debugTimeHour) < 23 ? 'at TOP (evening)' : 'at BOTTOM (daytime)'}
-                      </div>
-                    )}
-                  </div>
+                  {debugInputs.debugTimeHour !== undefined && debugInputs.debugTimeHour !== "" && (
+                    <div className="text-xs text-purple-600 dark:text-purple-400">
+                      Testing as {parseInt(debugInputs.debugTimeHour) % 12 || 12}{parseInt(debugInputs.debugTimeHour) >= 12 ? ' PM' : ' AM'} - Card will appear {parseInt(debugInputs.debugTimeHour) >= 17 && parseInt(debugInputs.debugTimeHour) < 23 ? 'at TOP (evening)' : 'at BOTTOM (daytime)'}
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-col gap-2 rounded-lg border border-amber-300/60 bg-amber-100/40 p-2.5 dark:border-amber-500/40 dark:bg-amber-500/10 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:p-3">
                   <div className="text-[10px] font-medium text-amber-800 dark:text-amber-200 sm:text-xs">
@@ -4118,7 +4180,7 @@ export default function App() {
                   </div>
                   <div className="flex items-center gap-2">
                     {debugActive && (
-                      <Button variant="ghost" onClick={clearDebugScenario} className="h-8 text-xs text-amber-600 hover:text-amber-700 dark:text-amber-300 dark:hover:text-amber-200 sm:h-9 sm:text-sm">
+                      <Button variant="ghost" onClick={clearDebugScenario} className="h-8 text-xs text-amber-600 hover:text-amber-700 dark:text-amber-300 dark:hover:text-amber-200" gender={gender}>
                         Reload live
                       </Button>
                     )}

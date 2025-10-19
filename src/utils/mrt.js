@@ -147,6 +147,15 @@ export function calculateMRT({
   if (!Number.isFinite(tempF) || !Number.isFinite(humidity)) {
     return null;
   }
+
+  // Log a warning if solarRadiation is 0 or undefined but solarElevation is positive
+  // (Disabled to reduce console noise - this is expected behavior for some APIs)
+  // if ((solarRadiation === 0 || solarRadiation === undefined) && solarElevation > 0) {
+  //   console.warn(
+  //     `⚠️ MRT calculation: solarRadiation is ${solarRadiation} but solarElevation is ${solarElevation}. ` +
+  //     `This may lead to an inaccurate MRT if solar data is missing.`
+  //   );
+  // }
   
   const tempK = fToK(tempF);
   
