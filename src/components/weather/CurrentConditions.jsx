@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { MapPin, Gauge, Sunrise as SunriseIcon, Sunset as SunsetIcon, Wind, CloudRain, Sun } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent, SegmentedControl } from "../ui";
 import { getUTCIColorClasses } from "../../utils/utci";
-import { round1 } from "../../utils/helpers";
+import { round1, getTempColor } from "../../utils/helpers";
 
 /**
  * CurrentConditions Component
@@ -111,8 +111,8 @@ const CurrentConditions = ({
                   )}
                 </div>
                 
-                {/* UTCI Condition Badge */}
-                {derived?.utciCategory && (
+                {/* Combined "Feels Like" Badge */}
+                {derived?.displayApparent != null && derived?.utci != null && (
                   <motion.div
                     className="group relative"
                     initial={{ opacity: 0, scale: 0.8 }}
@@ -121,14 +121,12 @@ const CurrentConditions = ({
                   >
                     <div 
                       className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium ${
-                        getUTCIColorClasses(derived.utciCategory.color).border
-                      } ${getUTCIColorClasses(derived.utciCategory.color).bg}`}
+                        getTempColor((derived.displayApparent + derived.utci) / 2).border
+                      } ${getTempColor((derived.displayApparent + derived.utci) / 2).bg}`}
+                      title={`UTCI: ${round1(derived.utci)}°`}
                     >
-                      <span className={getUTCIColorClasses(derived.utciCategory.color).label}>
-                        UTCI {round1(derived.utci)}°
-                      </span>
-                      <span className={getUTCIColorClasses(derived.utciCategory.color).value}>
-                        {derived.utciCategory.label}
+                      <span className={getTempColor((derived.displayApparent + derived.utci) / 2).text}>
+                        Feels like {round1((derived.displayApparent + derived.utci) / 2)}°
                       </span>
                     </div>
                   </motion.div>

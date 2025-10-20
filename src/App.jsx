@@ -1731,6 +1731,8 @@ export default function App() {
   }
   
   const utciCategory = utciData ? getUTCICategory(utciData.utci) : null;
+
+  const utciDisplay = utciData?.utci != null ? (unit === 'F' ? utciData.utci : fToC(utciData.utci)) : null;
   
   // Calculate Wet Bulb Globe Temperature (WBGT) for heat stress assessment
   const wbgtF = calculateWBGT({ 
@@ -1943,7 +1945,7 @@ export default function App() {
     mrtEnhancement: mrtData?.enhancement, // How much warmer than air temp
     mrtCategory, // MRT category info (label, color, impact)
     effectiveSolarTemp, // Effective temperature accounting for solar radiation
-    utci: utciData?.utci, // Universal Thermal Climate Index
+    utci: utciDisplay, // Universal Thermal Climate Index
     utciCategory, // UTCI stress category
     utciRainAdjustment: utciData?.rainAdjustment, // Rain cooling effect
     wbgt: wbgtF, // Wet Bulb Globe Temperature
