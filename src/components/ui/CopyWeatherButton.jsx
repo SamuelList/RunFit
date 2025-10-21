@@ -3,24 +3,61 @@ import { motion } from 'framer-motion';
 import { Copy, Check } from 'lucide-react';
 import { Button } from './Button';
 
-const CopyWeatherButton = ({ derived, wx, unit }) => {
+const MASTER_GEAR_LIST = [
+  'Sports Bra', 'Tank Top', 'Short-Sleeve Tech Tee', 'Long-Sleeve Base', 'extra layer Short-Sleeve Tech Tee',
+  'Light Jacket', 'Insulated Jacket', 'Split Shorts', 'Running Shorts', 'Running Tights', 'Thermal Tights',
+  'Cap', 'Cap for rain', 'Ear Band', 'Running Beanie', 'Balaclava', 'Light Gloves', 'Mid-weight Gloves',
+  'Running Mittens', 'Glove Liner (under mittens)', 'Arm Sleeves', 'Neck Gaiter', 'Windbreaker',
+  'Packable Rain Shell', 'Sunglasses', 'Sunscreen', 'Water/Hydration', 'Energy Gels/Chews',
+  'Anti-Chafe Balm', 'Light Running Socks', 'Heavy Running Socks', 'Double Socks (layered)'
+].join(', ');
+
+const CopyWeatherButton = ({ derived, wx, unit, gender, runType }) => {
   const [isCopied, setIsCopied] = useState(false);
+
+  const getRunTypeLabel = (type) => {
+    switch (type) {
+      case 'easy': return 'Easy Run';
+      case 'workout': return 'Hard Workout';
+      case 'longRun': return 'Long Run';
+      default: return 'Easy Run';
+    }
+  };
 
   const handleCopy = () => {
     if (!derived || !wx) return;
 
-    const weatherText = `
-Air temp: ${derived.tempDisplay?.toFixed(1)}°${unit}
-dew point: ${derived.dewPointDisplay?.toFixed(1)}°${unit}
-Humidity: ${wx.humidity?.toFixed(0)}%
-Wind: ${wx.wind?.toFixed(1)} mph
-Solar angle: ${derived.solarElevation?.toFixed(1)}°
-cloud cover: ${wx.cloud?.toFixed(0)}%
-Precip %: ${wx.precipProb?.toFixed(0)}%
-UV: ${wx.uv?.toFixed(1)}
+    const promptText = `
+Act as an expert running coach. Your task is to provide a gear recommendation and run strategy based only on the data I provide. Do not use any external tools or web searches; use reasoning alone.
+1. Input Data:
+• Weather:
+• Air Temp: ${derived.tempDisplay?.toFixed(1)}°${unit}
+• Dew Point: ${derived.dewPointDisplay?.toFixed(1)}°${unit}
+• Humidity: ${wx.humidity?.toFixed(0)}%
+• Wind: ${wx.wind?.toFixed(1)} mph
+• Solar Angle: ${derived.solarElevation?.toFixed(1)}°
+• Cloud Cover: ${wx.cloud?.toFixed(0)}%
+• Precipitation %: ${wx.precipProb?.toFixed(0)}%
+• Precipitation amount (in): ${wx.precip?.toFixed(2)}in
+• UV: ${wx.uv?.toFixed(1)}
+• Runner Profile:
+• Sex: ${gender || 'Male'}
+• Effort: ${getRunTypeLabel(runType)}
+• Master Gear List (Choose only from these items):
+• ${MASTER_GEAR_LIST}
+2. Required Output Format:
+You must structure your response in these three exact sections:
+Weather Analysis
+First, calculate the "Feels Like" temperature, factoring in the ${wx.wind?.toFixed(1)} mph wind. Briefly analyze what this means for the run. Note the solar angle, which indicates it is dark, and explain how that influences the feel and gear choices (e.g., no sun for warmth, visibility).
+Gear Recommendation (${getRunTypeLabel(runType)})
+Based on your analysis and the Runner Profile, create a simple, clean list of items selected only from the Master Gear List.
+• This list must be ordered from head to toe.
+• Do not include any extra text, explanations, or bullet points in this section—just the list of item names.
+Run Strategy
+In 20-40 words, provide a helpful run strategy tip for an experienced runner based on these specific conditions (especially the wind and darkness).
     `.trim();
 
-    navigator.clipboard.writeText(weatherText).then(() => {
+    navigator.clipboard.writeText(promptText).then(() => {
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
     });
@@ -37,12 +74,12 @@ UV: ${wx.uv?.toFixed(1)}
         {isCopied ? (
           <>
             <Check className="h-4 w-4 mr-2 text-green-500" />
-            Copied to Clipboard
+            Copied Prompt
           </>
         ) : (
           <>
             <Copy className="h-4 w-4 mr-2" />
-            Copy Weather Data
+            Copy Prompt
           </>
         )}
       </Button>

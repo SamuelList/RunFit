@@ -1,5 +1,6 @@
 // please use and or create other files at all cost, we are trying to reduce the size of App.jsx
 
+// USE React Context!!!!! stop with all the prop drilling
 
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -2334,8 +2335,7 @@ export default function App() {
                               exit={{ opacity: 0, y: -20 }} 
                               className="text-center p-8"
                             >
-                              <p className="text-lg font-semibold text-gray-700 dark:text-gray-300">A.I. recommendations are coming soon!</p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">This feature will provide personalized gear suggestions based on the weather.</p>
+                              <CopyWeatherButton derived={derived} wx={wx} unit={unit} gender={gender} runType={runType} />
                             </motion.div>
                           ) : (
                             <motion.div 
