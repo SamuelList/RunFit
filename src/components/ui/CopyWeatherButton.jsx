@@ -71,7 +71,7 @@ const analyzeWeatherTrend = (runType, hourlyForecast) => {
   };
 };
 
-const CopyWeatherButton = ({ derived, wx, unit, gender, runType }) => {
+const CopyWeatherButton = ({ derived, wx, unit, gender, runType, tempSensitivity }) => {
   const [isCopied, setIsCopied] = useState(false);
 
   const getRunTypeLabel = (type) => {
@@ -80,6 +80,17 @@ const CopyWeatherButton = ({ derived, wx, unit, gender, runType }) => {
       case 'workout': return 'Hard Workout';
       case 'longRun': return 'Long Run';
       default: return 'Easy Run';
+    }
+  };
+
+  const getTempSensitivityLabel = (sensitivity) => {
+    switch (sensitivity) {
+      case -2: return 'Runs Cold';
+      case -1: return 'Runs Slightly Cold';
+      case 0: return 'Standard';
+      case 1: return 'Runs Slightly Hot';
+      case 2: return 'Runs Hot';
+      default: return 'Standard';
     }
   };
 
@@ -104,12 +115,14 @@ const CopyWeatherButton = ({ derived, wx, unit, gender, runType }) => {
 
     const { trendSummary } = analyzeWeatherTrend(runType, wx.hourlyForecast);
 
+    const adjustedTemp = derived.tempDisplay + tempSensitivity * 5;
+
     const promptText = `
 Act as an expert running coach. Your task is to provide a gear recommendation and run strategy based only on the data I provide. Do not use any external tools or web searches; use reasoning alone.
 1. Input Data:
 • Timestamp: ${timestamp}
 • Weather (Current):
-• Air Temp: ${derived.tempDisplay?.toFixed(1)}°${unit}
+• Air Temp: ${adjustedTemp.toFixed(1)}°${unit} (Adjusted for runner's preference)
 • Dew Point: ${derived.dewPointDisplay?.toFixed(1)}°${unit}
 • Humidity: ${wx.humidity?.toFixed(0)}%
 • Wind: ${wx.wind?.toFixed(1)} mph
@@ -129,9 +142,9 @@ Act as an expert running coach. Your task is to provide a gear recommendation an
 2. Required Output Format:
 You must structure your response in these three exact sections:
 Weather Analysis
-First, calculate the "Feels Like" temperature, by analyzing all the weather data . Briefly analyze what this means for the run. Note your calculations , and explain how that influences the feel and gear choices (e.g., no sun for warmth, visibility). Also, comment on the weather trend and how it will affect the run.
+First, calculate the "Feels Like" temperature, factoring in the ${wx.wind?.toFixed(1)} mph wind and the runner's temperature preference. Briefly analyze what this means for the run. Note the solar angle is ${solarStatus.toLowerCase()}, and explain how that influences the feel and gear choices. Also, comment on the weather trend and how it will affect the run.
 Gear Recommendation (${getRunTypeLabel(runType)})
-Based on your analysis and the Runner Profile, create a simple, clean list of items selected only from the Master Gear List. The gear should be adaptable to the changing conditions noted in the weather trend.
+Based on your analysis and the Runner Profile (including their temperature preference), create a simple, clean list of items selected only from the Master Gear List. The gear should be adaptable to the changing conditions noted in the weather trend.
 • This list must be ordered from head to toe.
 • Do not include any extra text, explanations, or bullet points in this section—just the list of item names.
 Run Strategy

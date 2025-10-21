@@ -89,7 +89,7 @@ const Dashboard = () => {
                                         exit={{ opacity: 0, y: -20 }}
                                         className="text-center p-8"
                                     >
-                                        <CopyWeatherButton derived={derived} wx={wx} unit={unit} gender={gender} runType={runType} />
+                                        <CopyWeatherButton derived={derived} wx={wx} unit={unit} gender={gender} runType={runType} tempSensitivity={tempSensitivity} />
                                     </motion.div>
                                 ) : (
                                     <motion.div
