@@ -2065,6 +2065,12 @@ export default function App() {
     if (!derived) return "Outfit";
     const workout = runType === 'workout';
     const longRun = runType === 'longRun';
+    
+    // A.I. tab has its own title
+    if (activeOption === "C") {
+      return "AI-Generated Outfit";
+    }
+    
     if (!optionsDiffer) return workout ? "Workout-ready outfit" : longRun ? "Long run outfit" : "Recommended outfit";
     return activeOption === "B"
       ? workout ? "Option B — Comfort (controlled)" : "Option B — Comfort (cozy)"

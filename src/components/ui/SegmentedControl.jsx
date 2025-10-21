@@ -16,12 +16,12 @@ export const SegmentedControl = ({ options, value, onChange, gender }) => {
     : "text-sky-700 dark:text-sky-300";
     
   return (
-    <div className="flex items-center rounded-lg bg-gray-100 dark:bg-slate-800 p-1">
+    <div className="inline-flex items-center rounded-lg bg-gray-100 dark:bg-slate-800 p-1 flex-wrap gap-1 max-w-full">
       {options.map(opt => (
         <button 
           key={opt.value} 
           onClick={() => onChange(opt.value)} 
-          className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
+          className={`rounded-md px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
             value === opt.value 
               ? `bg-white shadow-sm dark:bg-slate-700 ${activeColor}` 
               : 'text-gray-600 hover:bg-gray-200/50 dark:text-slate-300 dark:hover:bg-slate-700/80'

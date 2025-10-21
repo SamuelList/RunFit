@@ -101,7 +101,7 @@ export const GEAR_INFO = {
     whenToWear: "Cool mornings (38-50°F) when you need extra warmth without bulk.",
     tips: "Layer over your base shirt. Easy to remove and tie around waist if you warm up.",
     tempRange: "38-50°F",
-    image: null, // Path to image file (e.g., '/images/gear/vest.png')
+    image: '/images/gear/short_sleeve.png'
   },
   light_jacket: {
     name: "Light Jacket",
@@ -251,7 +251,7 @@ export const GEAR_INFO = {
     whenToWear: "Research-backed: ESSENTIAL below 45°F (thermal/brushed knit) or UV index 8+ (UPF 50+). RECOMMENDED for UV 3-7 (UPF 30-50+), windy/cool conditions, or full sun + dry air (evaporative cooling). OPTIONAL 45-60°F for comfort/warm-up. SKIP above 60°F unless UV dictates or in hot+humid conditions (reduces sweat evaporation).",
     tips: "Thermal sleeves for cold (<45°F), UPF 50+ for high UV (8+), UPF 30+ for moderate UV (3-7). Thin sleeves you can wet work best in dry air for evaporative cooling. Easy to remove and pocket mid-run. Permethrin-treated versions prevent tick/mosquito bites (0.5% per CDC). Compression versions may aid recovery but show no clear performance gains in latest research.",
     tempRange: "Below 45°F (thermal), 45-60°F (optional), any temp with UV 3+ (sun protection)",
-    image: null, // Path to image file (e.g., '/images/gear/arm_sleeves.png')
+    image: '/images/gear/arm_sleeves.png'
   },
   arm_sleeves_optional: {
     name: "Arm Sleeves (Optional)",
@@ -260,7 +260,7 @@ export const GEAR_INFO = {
     whenToWear: "Moderate temps (45-60°F) for comfort, moderate UV (3-7) in warm weather, temperature swings on long runs, or personal preference scenarios.",
     tips: "Same as arm sleeves but recommended for comfort/preference rather than necessity. Great for warm-up miles - remove and pocket when you heat up. Consider if you tend to run cold or prefer extra sun protection.",
     tempRange: "45-60°F, or warm weather with moderate UV",
-    image: null, // Path to image file (e.g., '/images/gear/arm_sleeves.png')
+    image: '/images/gear/arm_sleeves.png'
   },
   neck_gaiter: {
     name: "Neck Gaiter",
@@ -278,7 +278,7 @@ export const GEAR_INFO = {
     whenToWear: "Research-backed guidelines: NEVER above 59°F (too warm). Optional at 55-59°F only for long runs with 20+ mph winds. Recommended with base layer at 50°F+ with 10+ mph winds, essential at 45°F and below, critical with midlayer at 35°F and below.",
     tips: "Packs into own pocket. Great insurance on long runs. Not waterproof. At 50°F+ pair with base layer; below 35°F add midlayer underneath for optimal warmth.",
     tempRange: "35-59°F with wind (10+ mph recommended at 50°F, essential below 45°F)",
-    image: null, // Path to image file (e.g., '/images/gear/windbreaker.png')
+    image: '/images/gear/windbreaker.png'
   },
   rain_shell: {
     name: "Packable Rain Shell",

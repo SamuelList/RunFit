@@ -135,7 +135,7 @@ Act as an expert running coach. Your task is to provide a gear recommendation an
 You must structure your response in these three exact sections:
 
 Weather Analysis
-First, calculate the "Feels Like" temperature, factoring in the ${wx.wind?.toFixed(1)} mph wind and the runner's temperature preference. Briefly analyze what this means for the run. Note the solar angle is ${solarStatus.toLowerCase()}, and explain how that influences the feel and gear choices. Also, comment on the weather trend and how it will affect the run.
+First, calculate the "Feels Like" temperature, by analyzing all the weather data . Thoroughly analyze what this means for the run. Note your all your calculations, and explain how that influences the feel and gear choices (e.g., no sun for warmth, visibility). Also, comment on the weather trend and how it will affect the run.
 
 Gear Recommendation (${getRunTypeLabel(runType)})
 Based on your analysis and the Runner Profile (including their temperature preference), create a simple, clean list of items selected only from the Master Gear List. The gear should be adaptable to the changing conditions noted in the weather trend.
