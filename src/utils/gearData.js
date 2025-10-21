@@ -27,6 +27,34 @@ export const GEAR_ICONS = {
   hydration: Droplets,
 };
 
+// Aliases to help map free-text AI output to canonical gear keys.
+// These are used by aiMapper to improve match accuracy.
+export const GEAR_ALIASES = {
+  'ear band': 'headband',
+  'earband': 'headband',
+  'ear-band': 'headband',
+  'head band': 'headband',
+  'cap for rain': 'brim_cap',
+  'cap': 'cap',
+  'sports bra': 'sports_bra',
+  'running tights': 'tights',
+  'light gloves': 'light_gloves',
+  'gloves': 'light_gloves',
+  'running socks': 'light_socks',
+  'light running socks': 'light_socks',
+  'sunglasses': 'sunglasses',
+  'sunscreen': 'sunscreen',
+  'windbreaker': 'windbreaker',
+  'packable rain shell': 'rain_shell',
+  'water': 'hydration',
+  'water/hydration': 'hydration',
+  'energy gels': 'energy_nutrition',
+  'energy gels/chews': 'energy_nutrition',
+  'anti-chafe balm': 'anti_chafe',
+  'double socks': 'double_socks',
+  'heavy running socks': 'heavy_socks'
+};
+
 // Comprehensive gear information database
 export const GEAR_INFO = {
   // Tops

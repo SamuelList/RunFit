@@ -1,6 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { Flame, TrendingUp, Hand, UserRound } from "lucide-react";
+import { Flame, TrendingUp, Hand, UserRound, Sparkles } from "lucide-react";
 import { GEAR_INFO, GEAR_ICONS } from "../../utils/gearData";
 
 /**
@@ -16,13 +16,14 @@ import { GEAR_INFO, GEAR_ICONS } from "../../utils/gearData";
  * @param {boolean} props.item.coldHands - Show cold hands badge
  * @param {boolean} props.item.workout - Show workout badge
  * @param {boolean} props.item.longRun - Show long run badge
+ * @param {boolean} props.item.isAiSuggested - Show AI suggestion badge
  * @param {Object} props.listItemVariants - Framer Motion animation variants
  * @param {Function} props.onClick - Click handler for item selection
  */
 const OutfitItem = ({ item, listItemVariants, onClick }) => {
   const gearInfo = GEAR_INFO[item.key];
   const Icon = GEAR_ICONS[item.key] || UserRound;
-  const hasBadges = item.coldHands || item.workout || item.longRun;
+  const hasBadges = item.coldHands || item.workout || item.longRun || item.isAiSuggested;
 
   return (
     <motion.div
@@ -51,6 +52,11 @@ const OutfitItem = ({ item, listItemVariants, onClick }) => {
         
         {hasBadges && (
           <div className="flex items-center gap-1">
+            {item.isAiSuggested && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-purple-200/60 dark:border-purple-500/40 bg-purple-50/80 dark:bg-purple-500/20 px-2 py-0.5 text-[10px] font-medium text-purple-700 dark:text-purple-300">
+                <Sparkles className="h-3 w-3" /> AI
+              </span>
+            )}
             {item.workout && (
               <span className="inline-flex items-center gap-1 rounded-full border border-amber-200/60 dark:border-amber-500/40 bg-amber-50/80 dark:bg-amber-500/20 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
                 <Flame className="h-3 w-3" /> Workout

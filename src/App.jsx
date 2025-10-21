@@ -657,6 +657,8 @@ export default function App() {
   const [activeOption, setActiveOption] = useState(initialSettings.activeOption);
   const [showSettings, setShowSettings] = useState(false);
   const [selectedOutfitItem, setSelectedOutfitItem] = useState(null);
+  // AI-applied item overrides (array of gear keys)
+  const [aiAppliedItems, setAiAppliedItems] = useState([]);
   const [showInsights, setShowInsights] = useState(false);
   const [showHourBreakdown, setShowHourBreakdown] = useState(false);
   const [selectedHourData, setSelectedHourData] = useState(null);
@@ -1996,6 +1998,42 @@ export default function App() {
 
   const activeItems = derived
     ? (() => {
+        // If the AI has applied items (user accepted), prefer those as the active list
+        if (Array.isArray(aiAppliedItems) && aiAppliedItems.length > 0) {
+          const itemsFromAi = aiAppliedItems.map((key) => ({ 
+            key, 
+            label: GEAR_INFO[key]?.name || key,
+            isAiSuggested: true // Mark as AI-suggested for visual badge
+          }));
+          return itemsFromAi.sort((a, b) => {
+            const aCategory = GEAR_INFO[a.key]?.category || 'Accessories';
+            const bCategory = GEAR_INFO[b.key]?.category || 'Accessories';
+            const aOrder = {
+              'Headwear': 1,
+              'Tops': 2,
+              'Outerwear': 3,
+              'Hands': 4,
+              'Bottoms': 5,
+              'Accessories': 6,
+              'Socks': 7,
+              'Nutrition': 8,
+              'Care': 9
+            }[aCategory] || 99;
+            const bOrder = {
+              'Headwear': 1,
+              'Tops': 2,
+              'Outerwear': 3,
+              'Hands': 4,
+              'Bottoms': 5,
+              'Accessories': 6,
+              'Socks': 7,
+              'Nutrition': 8,
+              'Care': 9
+            }[bCategory] || 99;
+            return aOrder - bOrder;
+          });
+        }
+
         const items = optionsDiffer && activeOption === "B"
           ? derived.recs.optionB
           : derived.recs.optionA;
@@ -2316,6 +2354,8 @@ export default function App() {
           GEAR_ICONS,
           UserRound,
           setSelectedOutfitItem,
+          aiAppliedItems,
+          setAiAppliedItems,
           Info,
           Flame,
           TrendingUp,

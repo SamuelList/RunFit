@@ -65,6 +65,32 @@ This section has moved here: [https://vitejs.dev/guide/build.html#advanced-base-
 
 This section has moved here: [https://vitejs.dev/guide/build.html](https://vitejs.dev/guide/build.html)
 
+## Environment Variables
+
+This app uses environment variables for API configuration. Create a `.env` file in the root directory:
+
+```bash
+# Gemini API Configuration
+VITE_GEMINI_API_KEY=your_api_key_here
+```
+
+Get your Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
+
+### Netlify Deployment
+
+To deploy on Netlify with environment variables:
+
+1. Push your code to GitHub (the `.env` file will be ignored)
+2. Go to [Netlify](https://app.netlify.com/) and import your repository
+3. In **Site Settings** → **Environment Variables**, add:
+   - **Key:** `VITE_GEMINI_API_KEY`
+   - **Value:** Your actual Gemini API key
+4. Deploy settings:
+   - **Build command:** `npm run build`
+   - **Publish directory:** `dist`
+
+The environment variable will be injected during the build process and available in your deployed app.
+
 ### Troubleshooting
 
 This section has moved here: [https://vitejs.dev/guide/troubleshooting.html](https://vitejs.dev/guide/troubleshooting.html)
