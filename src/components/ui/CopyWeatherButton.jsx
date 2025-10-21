@@ -27,15 +27,33 @@ const CopyWeatherButton = ({ derived, wx, unit, gender, runType }) => {
   const handleCopy = () => {
     if (!derived || !wx) return;
 
+    const getDayWithSuffix = (d) => {
+      if (d > 3 && d < 21) return `${d}th`;
+      switch (d % 10) {
+        case 1: return `${d}st`;
+        case 2: return `${d}nd`;
+        case 3: return `${d}rd`;
+        default: return `${d}th`;
+      }
+    };
+    const now = new Date();
+    const month = now.toLocaleDateString('en-US', { month: 'long' });
+    const day = getDayWithSuffix(now.getDate());
+    const time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(' ', '');
+    const timestamp = `${month} ${day}, ${time}`;
+    const solarStatus = derived.solarElevation > 0 ? 'Above Horizon' : 'Below Horizon';
+
     const promptText = `
 Act as an expert running coach. Your task is to provide a gear recommendation and run strategy based only on the data I provide. Do not use any external tools or web searches; use reasoning alone.
 1. Input Data:
+• Timestamp: ${timestamp}
 • Weather:
 • Air Temp: ${derived.tempDisplay?.toFixed(1)}°${unit}
 • Dew Point: ${derived.dewPointDisplay?.toFixed(1)}°${unit}
 • Humidity: ${wx.humidity?.toFixed(0)}%
 • Wind: ${wx.wind?.toFixed(1)} mph
-• Solar Angle: ${derived.solarElevation?.toFixed(1)}°
+• Solar Angle: ${solarStatus} (${derived.solarElevation?.toFixed(1)}°)
+• Solar Radiation: ${wx.solarRadiation?.toFixed(0)} W/m2
 • Cloud Cover: ${wx.cloud?.toFixed(0)}%
 • Precipitation %: ${wx.precipProb?.toFixed(0)}%
 • Precipitation amount (in): ${wx.precip?.toFixed(2)}in
@@ -48,7 +66,7 @@ Act as an expert running coach. Your task is to provide a gear recommendation an
 2. Required Output Format:
 You must structure your response in these three exact sections:
 Weather Analysis
-First, calculate the "Feels Like" temperature, factoring in the ${wx.wind?.toFixed(1)} mph wind. Briefly analyze what this means for the run. Note the solar angle, which indicates it is dark, and explain how that influences the feel and gear choices (e.g., no sun for warmth, visibility).
+First, calculate the "Feels Like" temperature, factoring in the ${wx.wind?.toFixed(1)} mph wind. Briefly analyze what this means for the run. Note the solar angle is ${solarStatus.toLowerCase()}, and explain how that influences the feel and gear choices (e.g., no sun for warmth, visibility).
 Gear Recommendation (${getRunTypeLabel(runType)})
 Based on your analysis and the Runner Profile, create a simple, clean list of items selected only from the Master Gear List.
 • This list must be ordered from head to toe.
