@@ -2383,9 +2383,6 @@ export default function App() {
     className="mt-6 text-center text-sm text-gray-400 dark:text-slate-500"
     variants={cardVariants}
   >
-    <div className="mb-4">
-      <CopyWeatherButton derived={derived} wx={wx} unit={unit} />
-    </div>
     <p>Weather by Open‑Meteo. Score blends real feel, dew point, wind, precip, UV, and heat/cold synergies.</p>
   </motion.footer>
       </motion.div>
