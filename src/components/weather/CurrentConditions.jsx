@@ -219,22 +219,37 @@ const CurrentConditions = ({
             </div>
 
             {/* Preferences Section */}
-            <div className="p-5 bg-gradient-to-br from-gray-50/50 to-white dark:from-slate-900/50 dark:to-slate-900">
-              <div className="space-y-3">
-                <div className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 p-3">
-                  <div className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-600 dark:text-slate-400">Run Type</div>
-                  <SegmentedControl
-                    value={runType}
-                    onChange={setRunType}
-                    options={[
-                      { label: "Easy Run", value: "easy" },
-                      { label: "Hard Workout", value: "workout" },
-                      { label: "Long Run", value: "longRun" },
-                    ]}
-                  />
-                </div>
-              </div>
-            </div>
+<div className="p-5 bg-gradient-to-br from-gray-50/50 to-white dark:from-slate-900/50 dark:to-slate-900">
+  <div className="space-y-3">
+    <div className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 p-3">
+      <div className="flex flex-col items-center justify-center space-y-4">
+        {/* Run Type - Centered */}
+        <div className="text-center">
+          <div className="mb-4 text-xs font-medium uppercase tracking-wide text-gray-600 dark:text-slate-400">
+            Run Type
+          </div>
+          <SegmentedControl
+            value={runType}
+            onChange={setRunType}
+            options={[
+              { label: "Easy Run", value: "easy" },
+              { label: "Hard Workout", value: "workout" },
+              { label: "Long Run", value: "longRun" },
+            ]}
+            // Use buttonClassName to directly control button sizing
+            buttonClassName="px-8 py-3 sm:px-12 sm:py-4 text-sm"
+            className="w-full justify-center"
+          />
+        </div>
+        
+        {/* Add your toggles here, also centered */}
+        <div className="text-center">
+          {/* Your toggle components would go here */}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
           </div>
           
           {error && (
