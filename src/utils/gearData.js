@@ -92,7 +92,7 @@ export const GEAR_INFO = {
     whenToWear: "Cool weather (40-55°F) or as a base layer in cold conditions.",
     tips: "Thumbholes keep sleeves in place. Can be layered under jackets for added warmth.",
     tempRange: "40-55°F",
-    image: null, // Path to image file (e.g., '/images/gear/long_sleeve.png')
+    image: '/images/gear/long_sleeve.png'
   },
   vest: {
     name: "Short-Sleeve Tech Tee",

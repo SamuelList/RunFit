@@ -113,7 +113,7 @@ Act as an expert running coach. Your task is to provide a gear recommendation an
 1. Input Data:
 • Timestamp: ${timestamp}
 • Weather (Current):
-  • Air Temp: ${adjustedTemp.toFixed(1)}°${unit} (Adjusted for runner's preference)
+  • Air Temp: ${(adjustedTemp + 5).toFixed(1)}°${unit} (Adjusted for runner's preference)
   • Dew Point: ${derived.dewPointDisplay?.toFixed(1)}°${unit}
   • Humidity: ${wx.humidity?.toFixed(0)}%
   • Wind: ${wx.wind?.toFixed(1)} mph

@@ -223,11 +223,24 @@ const Dashboard = () => {
                                     >
                                         <div className="flex items-start gap-2">
                                             <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
-                                            <p className="text-sm font-semibold leading-relaxed text-blue-800 dark:text-blue-200">
-                                                {activeOption === "A"
-                                                    ? "Performance-focused: Optimized for speed and efficiency. May sacrifice some warmth/comfort."
-                                                    : "Comfort-focused: Prioritizes warmth and protection. May feel slightly overdressed during hard efforts."}
-                                            </p>
+                                            {activeOption === 'C' ? (
+                                                <div className="flex items-center">
+                                                    <CopyWeatherButton
+                                                        derived={derived}
+                                                        wx={wx}
+                                                        unit={unit}
+                                                        gender={gender}
+                                                        runType={runType}
+                                                        tempSensitivity={tempSensitivity}
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <p className="text-sm font-semibold leading-relaxed text-blue-800 dark:text-blue-200">
+                                                    {activeOption === "A"
+                                                        ? "Performance-focused: Optimized for speed and efficiency. May sacrifice some warmth/comfort."
+                                                        : "Comfort-focused: Prioritizes warmth and protection. May feel slightly overdressed during hard efforts."}
+                                                </p>
+                                            )}
                                         </div>
                                     </motion.div>
                                 )}
