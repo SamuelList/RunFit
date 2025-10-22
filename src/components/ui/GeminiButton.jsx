@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Sparkles, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from './Button';
 import { generateGearRecommendation, isGeminiAvailable } from '../../utils/geminiService';
 import { mapAiOutput } from '../../utils/aiMapper';
+import { buildGeminiPrompt } from '../../utils/geminiPrompt';
+import aiCooldown, { getRemainingMs, isReady, setLastUsed, COOLDOWN_MS, formatMs } from '../../utils/aiCooldown';
 
 const MASTER_GEAR_LIST = [
   'Sports Bra', 'Tank Top', 'Short-Sleeve Tech Tee', 'Long-Sleeve Base', 'extra layer Short-Sleeve Tech Tee',
@@ -74,6 +76,7 @@ const analyzeWeatherTrend = (runType, hourlyForecast) => {
 const GeminiButton = ({ derived, wx, unit, gender, runType, tempSensitivity, onResultChange }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [remainingMs, setRemainingMs] = useState(0);
 
   const getRunTypeLabel = (type) => {
     switch (type) {
@@ -147,6 +150,32 @@ In 20-40 words, provide a helpful run strategy tip for an experienced runner bas
     `.trim();
   };
 
+  // Auto-log the prompt on mount / page refresh when data is available
+  useEffect(() => {
+    if (!derived || !wx) return;
+    try {
+      const promptText = buildPrompt();
+      // Deliberately log prompt for debugging/audit (no secrets included)
+      console.log('--- Gemini prompt (auto-logged on mount) ---\n', promptText);
+    } catch (e) {
+      console.warn('Failed to build AI prompt for logging:', e);
+    }
+    // Only log when the key inputs change
+  }, [derived, wx, unit, gender, runType, tempSensitivity]);
+
+  // Cooldown tick: update remainingMs every 500ms and listen for cross-tab updates
+  useEffect(() => {
+    const tick = () => setRemainingMs(getRemainingMs());
+    tick();
+    const id = setInterval(tick, 500);
+    const onUpdated = (e) => tick();
+    window.addEventListener('aiCooldownUpdated', onUpdated);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener('aiCooldownUpdated', onUpdated);
+    };
+  }, []);
+
   const handleGenerate = async () => {
     if (!derived || !wx) return;
 
@@ -161,12 +190,13 @@ In 20-40 words, provide a helpful run strategy tip for an experienced runner bas
     setError(null);
     onResultChange?.({ loading: true });
 
-    const prompt = buildPrompt();
+    const prompt = buildGeminiPrompt({ derived, wx, unit, gender, runType, tempSensitivity });
     const result = await generateGearRecommendation(prompt);
 
     setIsLoading(false);
 
     if (result.success) {
+      try { setLastUsed(); } catch(e) { /* ignore */ }
       // Map AI text output to canonical gear keys
       let mapped = [];
       try {
@@ -184,29 +214,43 @@ In 20-40 words, provide a helpful run strategy tip for an experienced runner bas
     }
   };
 
-  const isDisabled = !derived || !wx || isLoading || !isGeminiAvailable();
+  const isCooldownActive = remainingMs > 0;
+  const isDisabled = !derived || !wx || isLoading || !isGeminiAvailable() || isCooldownActive;
 
   return (
     <div className="space-y-2">
       <motion.div whileHover={{ scale: isDisabled ? 1 : 1.05 }} whileTap={{ scale: isDisabled ? 1 : 0.95 }}>
-        <Button
-          variant="outline"
-          onClick={handleGenerate}
-          className="w-full"
-          disabled={isDisabled}
-        >
-          {isLoading ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Generating...
-            </>
-          ) : (
-            <>
-              <Sparkles className="h-4 w-4 mr-2" />
-              Generate with AI
-            </>
-          )}
-        </Button>
+        <div className="relative">
+          <Button
+            variant="outline"
+            onClick={handleGenerate}
+            className={`w-full relative overflow-hidden ${isDisabled ? 'opacity-60 cursor-not-allowed' : ''}`}
+            disabled={isDisabled}
+          >
+            {/* progress overlay */}
+            {isCooldownActive && (
+              <div
+                aria-hidden
+                className="absolute left-0 top-0 h-full bg-sky-400/30 dark:bg-sky-500/30"
+                style={{ width: `${(1 - remainingMs / COOLDOWN_MS) * 100}%`, pointerEvents: 'none', transition: 'width 300ms linear' }}
+              />
+            )}
+
+            <span className="relative z-10 flex items-center justify-center">
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  {isCooldownActive ? formatMs(remainingMs) : 'Generate with AI'}
+                </>
+              )}
+            </span>
+          </Button>
+        </div>
       </motion.div>
       
       {error && (

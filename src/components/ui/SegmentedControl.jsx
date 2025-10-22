@@ -25,7 +25,7 @@ export const SegmentedControl = ({ options, value, onChange, gender, className =
         <button
           key={opt.value}
           onClick={() => onChange(opt.value)}
-          className={`rounded-md px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
+          className={`rounded-md px-3 sm:px-3 py-1 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
             value === opt.value
               ? `bg-white shadow-sm dark:bg-slate-700 ${activeColor}`
               : 'text-gray-600 hover:bg-gray-200/50 dark:text-slate-300 dark:hover:bg-slate-700/80'

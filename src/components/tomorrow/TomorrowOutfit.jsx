@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Calendar, Clock, UserRound } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui';
@@ -9,6 +9,7 @@ import { calculateUTCI } from '../../utils/utci';
 import { getUTCIScoreBreakdown } from '../../utils/utciScore';
 import { generateGearRecommendation, isGeminiAvailable } from '../../utils/geminiService';
 import { mapAiOutput } from '../../utils/aiMapper';
+import aiCooldown, { getRemainingMs, isReady, setLastUsed, COOLDOWN_MS, formatMs } from '../../utils/aiCooldown';
 
 /**
  * TomorrowOutfit Component
@@ -60,6 +61,7 @@ const TomorrowOutfit = ({
   cardVariants
 }) => {
   const [aiResult, setAiResult] = useState({ data: null, mapped: null, loading: false, error: null });
+  const [remainingMs, setRemainingMs] = useState(0);
 
   const tomorrowData = useMemo(() => {
     if (!wx?.hourlyForecast?.length) return null;
@@ -323,6 +325,12 @@ In 20-40 words, provide a helpful run strategy tip for an experienced runner bas
   const handleGenerateAI = async () => {
     if (!wx) return;
 
+    // Respect site-wide cooldown
+    if (!isReady()) {
+      setAiResult({ ...aiResult, error: `Please wait ${formatMs(getRemainingMs())} before generating again.` });
+      return;
+    }
+
     if (!isGeminiAvailable()) {
       setAiResult({ ...aiResult, error: 'API key not configured. Please add your Gemini API key to the .env file.' });
       return;
@@ -334,6 +342,7 @@ In 20-40 words, provide a helpful run strategy tip for an experienced runner bas
     const result = await generateGearRecommendation(prompt);
 
     if (result.success) {
+      try { setLastUsed(); } catch(e) { }
       let mapped = [];
       try {
         mapped = mapAiOutput(result.data || '');
@@ -348,6 +357,19 @@ In 20-40 words, provide a helpful run strategy tip for an experienced runner bas
       setAiResult({ ...aiResult, error: result.error, loading: false });
     }
   };
+
+  // Cooldown tick: update remainingMs every 500ms and listen for cross-tab updates
+  useEffect(() => {
+    const tick = () => setRemainingMs(getRemainingMs());
+    tick();
+    const id = setInterval(tick, 500);
+    const onUpdated = () => tick();
+    window.addEventListener('aiCooldownUpdated', onUpdated);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener('aiCooldownUpdated', onUpdated);
+    };
+  }, []);
 
   if (!tomorrowData) return null;
 
@@ -487,14 +509,18 @@ In 20-40 words, provide a helpful run strategy tip for an experienced runner bas
                   </button>
                   <button
                     onClick={handleGenerateAI}
-                    disabled={aiResult.loading}
-                    className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                    disabled={aiResult.loading || !isReady()}
+                    className={`relative overflow-hidden rounded px-2.5 py-1 text-xs font-medium transition-colors ${
                       tomorrowCardOption === 'C'
                         ? 'bg-sky-500 text-white dark:bg-sky-600'
                         : 'bg-slate-200 text-slate-600 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
-                    } ${aiResult.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    } ${aiResult.loading || !isReady() ? 'opacity-60 cursor-not-allowed' : ''}`}
                   >
-                    {aiResult.loading ? 'Generating...' : 'AI'}
+                    {/* progress bar overlay */}
+                    {(!isReady() || aiResult.loading) && (
+                      <div className="absolute left-0 top-0 h-full bg-sky-400/30 dark:bg-sky-500/30" style={{ width: `${(1 - getRemainingMs() / COOLDOWN_MS) * 100}%`, pointerEvents: 'none', transition: 'width 300ms linear' }} />
+                    )}
+                    <span className="relative z-10">{aiResult.loading ? 'Generating...' : (isReady() ? 'AI' : formatMs(getRemainingMs()))}</span>
                   </button>
                 </div>
               </div>

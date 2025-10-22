@@ -23,6 +23,7 @@ import { outfitFor, chooseSocks, calculateEffectiveTemp, baseLayersForTemp, hand
 // UI Components
 import { Card, CardHeader, CardTitle, CardContent, Button, Input, Label, Switch, SegmentedControl } from "./components/ui";
 import CopyWeatherButton from "./components/ui/CopyWeatherButton";
+import { buildGeminiPrompt } from './utils/geminiPrompt';
 
 // Layout Components
 import { Header, LoadingSplash } from "./components/layout";
@@ -47,6 +48,18 @@ import { TomorrowOutfit, TimeSelector } from "./components/tomorrow";
 import { PerformanceScore } from "./components/performance";
 import Dashboard from "./components/Dashboard";
 import AppContext from './components/context/AppContext';
+import { AiCooldownProvider, useAiCooldown } from './components/context/AiCooldownContext';
+
+// Bridge to insert ai cooldown values into the existing AppContext value
+const CooldownBridge = ({ children, valueProps }) => {
+  const cooldown = useAiCooldown();
+  const bridgeValue = { ...valueProps, aiCooldown: cooldown };
+  return (
+    <AppContext.Provider value={bridgeValue}>
+      {children}
+    </AppContext.Provider>
+  );
+};
 
 // iOS-specific styles for safe area and native feel
 if (typeof document !== 'undefined') {
@@ -763,6 +776,15 @@ export default function App() {
   }
 };  // Save settings to localStorage whenever they change
   useEffect(() => {
+    // Development-only: auto-log the Gemini prompt when derived data becomes available
+    if (process.env.NODE_ENV === 'development' && derived && wx) {
+      try {
+        const prompt = buildGeminiPrompt({ derived, wx, unit, gender, runType, tempSensitivity });
+        console.log('--- Auto-logged Gemini prompt (from App) ---\n', prompt);
+      } catch (e) {
+        console.warn('Failed to auto-log Gemini prompt:', e);
+      }
+    }
     const settings = {
       place,
       query,
@@ -1839,18 +1861,7 @@ export default function App() {
         precipRate: slotPrecip || 0
       });
       
-      console.log(`📊 HOURLY UTCI INPUTS DEBUG for ${new Date(slot.time).toISOString()} at`, {
-        tempF: parseFloat(slotTempF?.toFixed(1)) ?? 0,
-        humidity: parseFloat(slotHumidity?.toFixed(0)) ?? 0,
-        windMph: parseFloat(slotWind?.toFixed(1)) ?? 0,
-        mrt: parseFloat(slotMrtData?.mrt?.toFixed(1)) ?? 0,
-        precipRate: parseFloat(slotPrecip?.toFixed(2)) ?? 0,
-        cloudCover: parseFloat(slotCloud?.toFixed(0)) ?? 0,
-        solarElevation: parseFloat(slotSolarElevation?.toFixed(1)) ?? 0,
-        solarRadiation: parseFloat(slot.solarRadiation?.toFixed(0)) ?? 0,
-        utci: parseFloat(slotUtciData?.utci?.toFixed(1)) ?? 0,
-        utciAdjustment: parseFloat(slotUtciData?.adjustment?.toFixed(1)) ?? 0,
-      });
+      
 
       const slotBreakdown = slotUtciData ? getUTCIScoreBreakdown(slotUtciData, slotPrecip || 0) : {
         score: 50,
@@ -2344,52 +2355,61 @@ export default function App() {
         />
 
         {/* Main Dashboard */}
-        <AppContext.Provider value={{
-          derived,
-          wx,
-          staggerContainer,
-          cardVariants,
-          listItemVariants,
-          optionsDiffer,
-          activeOption,
-          setActiveOption,
-          runType,
-          optionTitle,
-          activeItems,
-          GEAR_INFO,
-          GEAR_ICONS,
-          UserRound,
-          setSelectedOutfitItem,
-          aiAppliedItems,
-          setAiAppliedItems,
-          Info,
-          Flame,
-          TrendingUp,
-          Hand,
-          getDisplayedScore,
-          runnerBoldness,
-          unit,
-          isEvening,
-          showTomorrowOutfit,
-          tomorrowRunHour,
-          tomorrowCardRunType,
-          tomorrowCardOption,
-          setTomorrowCardRunType,
-          setTomorrowRunType,
-          setTomorrowCardOption,
-          setShowTimePickerModal,
-          outfitFor,
-          scoreLabel,
-          scoreBasedTone,
-          coldHands,
-          gender,
-          tempSensitivity,
-          displayedScoreProps,
-          gaugeData,
-          setShowInsights,
-        }}>
-          <Dashboard />
-        </AppContext.Provider>
+        <AiCooldownProvider>
+          {
+            (() => {
+              const valueProps = {
+                derived,
+                wx,
+                staggerContainer,
+                cardVariants,
+                listItemVariants,
+                optionsDiffer,
+                activeOption,
+                setActiveOption,
+                runType,
+                optionTitle,
+                activeItems,
+                GEAR_INFO,
+                GEAR_ICONS,
+                UserRound,
+                setSelectedOutfitItem,
+                aiAppliedItems,
+                setAiAppliedItems,
+                Info,
+                Flame,
+                TrendingUp,
+                Hand,
+                getDisplayedScore,
+                runnerBoldness,
+                unit,
+                isEvening,
+                showTomorrowOutfit,
+                tomorrowRunHour,
+                tomorrowCardRunType,
+                tomorrowCardOption,
+                setTomorrowCardRunType,
+                setTomorrowRunType,
+                setTomorrowCardOption,
+                setShowTimePickerModal,
+                outfitFor,
+                scoreLabel,
+                scoreBasedTone,
+                coldHands,
+                gender,
+                tempSensitivity,
+                displayedScoreProps,
+                gaugeData,
+                setShowInsights,
+              };
+              return (
+                <CooldownBridge valueProps={valueProps}>
+                  <Dashboard />
+                </CooldownBridge>
+              );
+            })()
+          }
+        </AiCooldownProvider>
 
         {/* Night Running Conditions Card */}
         <NightRunningCard

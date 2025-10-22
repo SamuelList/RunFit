@@ -8,3 +8,92 @@ npm run dev -- --host 0.0.0.0 --port 5173
 
 
 {Math.max(1, Math.round(displaySlotScore / 10))}
+
+
+
+Here is a logical way to categorize that list for color-coded icons.
+
+The items can be broken down into 7 clear categories based on their function and where they are worn.
+
+---
+
+## Category 1: Tops (Base & Mid-Layers)
+
+This group includes all primary shirts and tops that are not outerwear.
+
+* **Suggested Color:** **Blue** 🔵
+* **Items:**
+    * Sports Bra
+    * Tank Top
+    * Short-Sleeve Tech Tee
+    * Long-Sleeve Base
+    * extra layer Short-Sleeve Tech Tee
+
+## Category 2: Bottoms
+
+This group includes all items worn on the legs.
+
+* **Suggested Color:** **Green** 🟢
+* **Items:**
+    * Split Shorts
+    * Running Shorts
+    * Running Tights
+    * Thermal Tights
+
+## Category 3: Outerwear
+
+This group is for items worn over other layers for protection from weather (wind, rain, or cold).
+
+* **Suggested Color:** **Red** 🔴
+* **Items:**
+    * Light Jacket
+    * Insulated Jacket
+    * Windbreaker
+    * Packable Rain Shell
+
+## Category 4: Head & Neck
+
+This group includes all accessories worn on the head or around the neck.
+
+* **Suggested Color:** **Purple** 🟣
+* **Items:**
+    * Cap
+    * Cap for rain
+    * Ear Band
+    * Running Beanie
+    * Balaclava
+    * Neck Gaiter
+
+## Category 5: Hands & Arms
+
+This group includes all accessories for the arms and hands.
+
+* **Suggested Color:** **Orange** 🟠
+* **Items:**
+    * Light Gloves
+    * Mid-weight Gloves
+    * Running Mittens
+    * Glove Liner (under mittens)
+    * Arm Sleeves
+
+## Category 6: Socks
+
+This group is specific to foot coverings.
+
+* **Suggested Color:** **Gray** ⚪
+* **Items:**
+    * Light Running Socks
+    * Heavy Running Socks
+    * Double Socks (layered)
+
+## Category 7: Gear & Essentials
+
+This is a catch-all for non-apparel items like nutrition, hydration, and protection.
+
+* **Suggested Color:** **Yellow** 🟡
+* **Items:**
+    * Sunglasses
+    * Sunscreen
+    * Water/Hydration
+    * Energy Gels/Chews
+    * Anti-Chafe Balm

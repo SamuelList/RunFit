@@ -219,7 +219,7 @@ const CurrentConditions = ({
             </div>
 
             {/* Preferences Section */}
-<div className="p-5 bg-gradient-to-br from-gray-50/50 to-white dark:from-slate-900/50 dark:to-slate-900">
+<div className="p-5 bg-gradient-to-br from-gray-50/50 to-white dark:from-slate-900/50 dark:to-slate-900 w-full min-w-[260px] sm:min-w-[320px]">
   <div className="space-y-3">
     <div className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 p-3">
       <div className="flex flex-col items-center justify-center space-y-4">
@@ -237,7 +237,7 @@ const CurrentConditions = ({
               { label: "Long Run", value: "longRun" },
             ]}
             // Use buttonClassName to directly control button sizing
-            buttonClassName="px-8 py-3 sm:px-12 sm:py-4 text-sm"
+            buttonClassName="px-4 py-2 sm:px-12 sm:py-4 text-sm"
             className="w-full justify-center"
           />
         </div>
