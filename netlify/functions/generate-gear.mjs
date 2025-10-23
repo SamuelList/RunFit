@@ -13,10 +13,10 @@ function ensureGemini() {
     return false;
   }
   try {
-    const g = new GoogleGenerativeAI(key.trim());
-    model = g.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-2.5-pro' });
-    console.log('Gemini initialized successfully');
-    return true;
+      const g = new GoogleGenerativeAI(key.trim());
+      model = g.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-2.5-pro' });
+      console.log('Gemini initialized successfully');
+      return true;
   } catch (e) {
     console.error('Failed to initialize Gemini SDK:', e);
     return false;
@@ -49,11 +49,34 @@ export async function handler(event) {
       return { statusCode: 500, body: JSON.stringify({ success: false, error: 'GEMINI_API_KEY not configured' }) };
     }
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    try {
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+      return { statusCode: 200, body: JSON.stringify({ success: true, data: text }) };
+    } catch (err) {
+      console.warn('[generate-gear] primary model failed:', err?.message || err);
+      const msg = (err && err.message) ? err.message.toLowerCase() : '';
+      const accessRelated = msg.includes('not authorized') || msg.includes('permission') || msg.includes('access') || msg.includes('model not found') || msg.includes('not found') || msg.includes('does not exist') || msg.includes('unsupported');
 
-    return { statusCode: 200, body: JSON.stringify({ success: true, data: text }) };
+      if (accessRelated) {
+        // Attempt fallback to a flash model
+        try {
+          console.log('[generate-gear] attempting fallback to gemini-2.5-flash');
+          const g2 = new GoogleGenerativeAI(process.env.GEMINI_API_KEY.trim());
+          const flash = g2.getGenerativeModel({ model: 'gemini-2.5-flash' });
+          const fres = await flash.generateContent(prompt);
+          const fresp = await fres.response;
+          const ftext = fresp.text();
+          return { statusCode: 200, body: JSON.stringify({ success: true, data: ftext, note: 'retried-with-flash' }) };
+        } catch (ferr) {
+          console.error('[generate-gear] fallback also failed:', ferr);
+          return { statusCode: 500, body: JSON.stringify({ success: false, error: (ferr && ferr.message) || 'Server error' }) };
+        }
+      }
+
+      return { statusCode: 500, body: JSON.stringify({ success: false, error: (err && err.message) || 'Server error' }) };
+    }
   } catch (err) {
     console.error('Function error:', err);
     return { statusCode: 500, body: JSON.stringify({ success: false, error: (err && err.message) || 'Server error' }) };

@@ -261,6 +261,7 @@ const Dashboard = () => {
                                                     />
                                                 </div>
                                             ) : (
+                                                // When in AI tab we don't show the Performance/Comfort description
                                                 <p className="text-sm font-semibold leading-relaxed text-blue-800 dark:text-blue-200">
                                                     {activeOption === "A"
                                                         ? "Performance-focused: Optimized for speed and efficiency. May sacrifice some warmth/comfort."

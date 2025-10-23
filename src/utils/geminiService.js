@@ -56,7 +56,8 @@ export const generateGearRecommendation = async (promptText) => {
       const payload = await resp.json();
       console.log('[geminiService] Response payload:', payload);
       if (!resp.ok) return { success: false, error: payload.error || 'Server error', ...(payload.remainingMs ? { remainingMs: payload.remainingMs } : {}) };
-      return { success: true, data: payload.data };
+      // Include server 'note' if present (e.g., retried-with-flash)
+      return { success: true, data: payload.data, ...(payload.note ? { note: payload.note } : {}) };
     }
 
     // Initialize if not already done (client-side SDK)
@@ -71,14 +72,36 @@ export const generateGearRecommendation = async (promptText) => {
     }
 
     // Generate content via client-side SDK
-    const result = await model.generateContent(promptText);
-    const response = await result.response;
-    const text = response.text();
+    try {
+      const result = await model.generateContent(promptText);
+      const response = await result.response;
+      const text = response.text();
+      return { success: true, data: text };
+    } catch (e) {
+      console.warn('[geminiService] primary model generate failed:', e?.message || e);
 
-    return {
-      success: true,
-      data: text
-    };
+      // Detect common access/model-not-available errors and try fallback to flash
+      const msg = (e && e.message) ? e.message.toLowerCase() : '';
+      const accessRelated = msg.includes('not authorized') || msg.includes('permission') || msg.includes('access') || msg.includes('model not found') || msg.includes('not found') || msg.includes('does not exist') || msg.includes('unsupported');
+
+      if (accessRelated) {
+        try {
+          console.log('[geminiService] attempting fallback to gemini-2.5-flash');
+          // Attempt to instantiate a flash model client and retry once
+          const flashClient = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY.trim());
+          const flashModel = flashClient.getGenerativeModel({ model: 'gemini-2.5-flash' });
+          const flashResult = await flashModel.generateContent(promptText);
+          const flashResponse = await flashResult.response;
+          const flashText = flashResponse.text();
+          return { success: true, data: flashText, note: 'retried-with-flash' };
+        } catch (flashErr) {
+          console.error('[geminiService] fallback model also failed:', flashErr);
+          // fall through to unified error handler below
+        }
+      }
+
+      throw e; // let the outer catch handle the message
+    }
   } catch (error) {
     console.error('Gemini API error:', error);
     

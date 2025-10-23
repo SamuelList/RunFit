@@ -65,8 +65,13 @@ const GeminiButton = ({ derived, wx, unit, gender, runType, tempSensitivity, onR
     setIsLoading(false);
 
     if (result.success) {
-      // Start the cooldown only after a successful response
-      try { startCooldown(); } catch(e) { /* ignore */ }
+      // If the service indicates we retried with a flash model, show a brief info hint
+      if (result.note === 'retried-with-flash') {
+        try {
+          setInfo('Using flash model as fallback');
+          setTimeout(() => setInfo(null), 4000);
+        } catch (e) { /* ignore */ }
+      }
       // Map AI text output to canonical gear keys
       let mapped = [];
       try {
