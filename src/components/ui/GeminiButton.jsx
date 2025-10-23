@@ -55,6 +55,7 @@ const GeminiButton = ({ derived, wx, unit, gender, runType, tempSensitivity, onR
     setIsLoading(false);
 
     if (result.success) {
+      // Start the cooldown only after a successful response
       try { startCooldown(); } catch(e) { /* ignore */ }
       // Map AI text output to canonical gear keys
       let mapped = [];
@@ -68,9 +69,9 @@ const GeminiButton = ({ derived, wx, unit, gender, runType, tempSensitivity, onR
       // Return both raw text and mapped suggestions to the caller for UI review
       onResultChange?.({ data: result.data, mapped, loading: false });
     } else {
-      // If server returned cooldown error, sync client state and show a friendly message
+      // If server returned cooldown error, do NOT start a new local cooldown here.
+      // Instead, sync local UI to the server-provided remainingMs by calling startCooldown only when the context's polling detects it.
       if (result.error === 'Cooldown' && result.remainingMs) {
-        try { startCooldown(); } catch(e) { /* ignore */ }
         setError(`Please wait ${formatMs(result.remainingMs)} before generating again.`);
       } else {
         setError(result.error);

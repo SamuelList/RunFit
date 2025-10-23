@@ -230,6 +230,7 @@ const TomorrowOutfit = ({
     const result = await generateGearRecommendation(prompt);
 
     if (result.success) {
+      // Start cooldown only after successful response
       try { startCooldown(); } catch(e) { }
       let mapped = [];
       try {
@@ -242,9 +243,8 @@ const TomorrowOutfit = ({
       setAiResult({ data: result.data, mapped, loading: false, error: null });
       setTomorrowCardOption('C');
     } else {
-      // If server returned cooldown error, sync client state and show a friendly message
+      // Do NOT start a new local cooldown here when the server returns a cooldown error.
       if (result.error === 'Cooldown' && result.remainingMs) {
-        try { startCooldown(); } catch(e) { /* ignore */ }
         setAiResult({ ...aiResult, error: `Please wait ${formatMs(result.remainingMs)} before generating again.`, loading: false });
       } else {
         setAiResult({ ...aiResult, error: result.error, loading: false });

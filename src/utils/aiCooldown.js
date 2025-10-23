@@ -1,5 +1,5 @@
 const KEY = 'runfit_ai_last_used_v1';
-export const COOLDOWN_MS = 90_000; // 1 minute 30 seconds
+export const COOLDOWN_MS = 120_000; // 2 minutes
 
 export function getLastUsed() {
   try {
