@@ -8,10 +8,19 @@ let model = null;
 function ensureGemini() {
   if (model) return true;
   const key = process.env.GEMINI_API_KEY;
-  if (!key) return false;
-  const g = new GoogleGenerativeAI(key.trim());
-  model = g.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-2.5-pro' });
-  return true;
+  if (!key) {
+    console.error('GEMINI_API_KEY not found in env. Available env keys:', Object.keys(process.env).filter(k => k.includes('GEMINI') || k.includes('UPSTASH')));
+    return false;
+  }
+  try {
+    const g = new GoogleGenerativeAI(key.trim());
+    model = g.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-2.5-pro' });
+    console.log('Gemini initialized successfully');
+    return true;
+  } catch (e) {
+    console.error('Failed to initialize Gemini SDK:', e);
+    return false;
+  }
 }
 
 export async function handler(event) {
