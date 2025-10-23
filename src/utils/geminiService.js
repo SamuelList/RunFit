@@ -1,8 +1,9 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// Initialize the Gemini API
+// Initialize the Gemini API (client-side fallback) — server proxy will be used if VITE_USE_PROXY=true
 let genAI = null;
 let model = null;
+const USE_PROXY = import.meta.env.VITE_USE_PROXY === 'true';
 
 /**
  * Initialize the Gemini API with the provided API key
@@ -42,7 +43,20 @@ export const initializeGemini = () => {
  */
 export const generateGearRecommendation = async (promptText) => {
   try {
-    // Initialize if not already done
+    if (USE_PROXY) {
+      // POST to server proxy which holds the server-side API key and enforces cooldown
+      const resp = await fetch('/api/generate-gear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: promptText })
+      });
+
+      const payload = await resp.json();
+      if (!resp.ok) return { success: false, error: payload.error || 'Server error', ...(payload.remainingMs ? { remainingMs: payload.remainingMs } : {}) };
+      return { success: true, data: payload.data };
+    }
+
+    // Initialize if not already done (client-side SDK)
     if (!model) {
       const initialized = initializeGemini();
       if (!initialized) {
@@ -53,7 +67,7 @@ export const generateGearRecommendation = async (promptText) => {
       }
     }
 
-    // Generate content
+    // Generate content via client-side SDK
     const result = await model.generateContent(promptText);
     const response = await result.response;
     const text = response.text();

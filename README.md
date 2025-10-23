@@ -69,27 +69,37 @@ This section has moved here: [https://vitejs.dev/guide/build.html](https://vitej
 
 This app uses environment variables for API configuration. Create a `.env` file in the root directory:
 
+The app now defaults to using a server-side proxy for Gemini calls so your
+API key is never exposed in the browser. There are two parts:
+
+1) Server (recommended, required for production)
+
+ - Run the small Express server in `server/` (or deploy it to Cloud Run).
+ - Provide your server-side key as `GEMINI_API_KEY` (see `server/.env.example`).
+ - The server exposes POST `/api/generate-gear` and enforces cooldowns.
+
+2) Client
+
+ - In the client `.env` enable the proxy with:
+
 ```bash
-# Gemini API Configuration
-VITE_GEMINI_API_KEY=your_api_key_here
+VITE_USE_PROXY=true
 ```
+
+ - Do NOT set `VITE_GEMINI_API_KEY` in production. If you set it, the client
+    will attempt to call Gemini directly (not recommended).
 
 Get your Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
 
-### Netlify Deployment
+### Netlify / Vercel Deployment (recommended approach)
 
-To deploy on Netlify with environment variables:
+When deploying, DO NOT inject your Gemini API key into the client bundle. Instead:
 
-1. Push your code to GitHub (the `.env` file will be ignored)
-2. Go to [Netlify](https://app.netlify.com/) and import your repository
-3. In **Site Settings** → **Environment Variables**, add:
-   - **Key:** `VITE_GEMINI_API_KEY`
-   - **Value:** Your actual Gemini API key
-4. Deploy settings:
-   - **Build command:** `npm run build`
-   - **Publish directory:** `dist`
+1. Deploy the server component (Cloud Run, VM, or a small server) and set `GEMINI_API_KEY` there.
+2. Deploy the client to Netlify/Vercel and set `VITE_USE_PROXY=true` in the site's environment variables.
+3. Ensure the client can reach the server proxy (CORS / networking) and that `/api/generate-gear` is routed to the server.
 
-The environment variable will be injected during the build process and available in your deployed app.
+If you must keep everything serverless on Netlify or Vercel functions, implement the same server-side handler as shown in `server/index.js` as a function and configure the function's environment variables with your `GEMINI_API_KEY`.
 
 ### Troubleshooting
 

@@ -9,7 +9,9 @@ import { calculateUTCI } from '../../utils/utci';
 import { getUTCIScoreBreakdown } from '../../utils/utciScore';
 import { generateGearRecommendation, isGeminiAvailable } from '../../utils/geminiService';
 import { mapAiOutput } from '../../utils/aiMapper';
-import aiCooldown, { getRemainingMs, isReady, setLastUsed, COOLDOWN_MS, formatMs } from '../../utils/aiCooldown';
+import { useAiCooldown } from '../context/AiCooldownContext.js';
+import { formatMs } from '../../utils/aiCooldown';
+import { buildGeminiPrompt } from '../../utils/geminiPrompt';
 
 /**
  * TomorrowOutfit Component
@@ -61,7 +63,7 @@ const TomorrowOutfit = ({
   cardVariants
 }) => {
   const [aiResult, setAiResult] = useState({ data: null, mapped: null, loading: false, error: null });
-  const [remainingMs, setRemainingMs] = useState(0);
+  const { remainingMs, isReady, startCooldown, COOLDOWN_MS } = useAiCooldown();
 
   const tomorrowData = useMemo(() => {
     if (!wx?.hourlyForecast?.length) return null;
@@ -72,18 +74,24 @@ const TomorrowOutfit = ({
     tomorrow.setHours(tomorrowRunHour, 0, 0, 0);
     
     const targetTime = tomorrow.getTime();
-    
-    // Find slots for the selected hour, hour before, and hour after
+
+    // Helper to find the closest hourly forecast slot for a target hour offset
     const findClosestSlot = (targetOffset) => {
       const searchTime = targetTime + targetOffset * 60 * 60 * 1000;
       return wx.hourlyForecast
-        .map(slot => ({
-          slot,
-          time: typeof slot.time === 'number' ? slot.time : Date.parse(slot.time)
-        }))
+        .map(slot => ({ slot, time: typeof slot.time === 'number' ? slot.time : Date.parse(slot.time) }))
         .filter(({ time }) => Math.abs(time - searchTime) <= 90 * 60 * 1000)
         .sort((a, b) => Math.abs(a.time - searchTime) - Math.abs(b.time - searchTime))[0]?.slot;
     };
+    const MASTER_GEAR_LIST = [
+      'Sports Bra', 'Tank Top', 'Short-Sleeve Tech Tee', 'Long-Sleeve Base', 'extra layer Short-Sleeve Tech Tee',
+      'Light Jacket', 'Insulated Jacket', 'Split Shorts', 'Running Shorts', 'Running Tights', 'Thermal Tights',
+      'Cap', 'Cap for rain', 'Ear Band', 'Running Beanie', 'Balaclava', 'Light Gloves', 'Mid-weight Gloves',
+      'Running Mittens', 'Glove Liner (under mittens)', 'Arm Sleeves', 'Neck Gaiter', 'Windbreaker',
+      'Packable Rain Shell', 'Sunglasses', 'Sunscreen', 'Water/Hydration', 'Energy Gels/Chews',
+      'Anti-Chafe Balm', 'Light Running Socks', 'Heavy Running Socks', 'Double Socks (layered)'
+    ].join(', ');
+    
     
     const hourBefore = findClosestSlot(-1);
     const mainHour = findClosestSlot(0);
@@ -193,62 +201,7 @@ const TomorrowOutfit = ({
     'Anti-Chafe Balm', 'Light Running Socks', 'Heavy Running Socks', 'Double Socks (layered)'
   ].join(', ');
 
-  const analyzeWeatherTrend = (runType, hourlyForecast) => {
-    if (!hourlyForecast || hourlyForecast.length < 2) {
-      return { trendSummary: 'No forecast data available to analyze trends.' };
-    }
-
-    const current = hourlyForecast[0];
-    let futureHours;
-    let trendDescription;
-
-    if (runType === 'longRun') {
-      futureHours = hourlyForecast.slice(1, 4);
-      trendDescription = 'over the next ~3 hours';
-    } else {
-      futureHours = hourlyForecast.slice(1, 2);
-      trendDescription = 'in the next hour';
-    }
-
-    if (futureHours.length === 0) {
-      return { trendSummary: `Conditions are expected to be stable ${trendDescription}.` };
-    }
-
-    const future = futureHours.reduce((acc, hour) => {
-      return {
-        temp: acc.temp + hour.temperature,
-        precipProb: Math.max(acc.precipProb, hour.precipProb),
-        wind: acc.wind + hour.wind,
-      };
-    }, { temp: 0, precipProb: 0, wind: 0 });
-
-    future.temp /= futureHours.length;
-    future.wind /= futureHours.length;
-
-    const currentTemp = current.temperature;
-    const tempChange = future.temp - currentTemp;
-    const precipStarts = future.precipProb > 50 && current.precipProb < 30;
-    const windIncreases = future.wind > current.wind + 8;
-
-    const changes = [];
-    if (Math.abs(tempChange) > 8) {
-      changes.push(`temperature will ${tempChange > 0 ? 'rise' : 'fall'} by ~${Math.round(Math.abs(tempChange))}°`);
-    }
-    if (precipStarts) {
-      changes.push(`rain is likely to start (chance increases to ${Math.round(future.precipProb)}%)`);
-    }
-    if (windIncreases) {
-      changes.push(`wind will pick up to ~${Math.round(future.wind)} mph`);
-    }
-
-    if (changes.length === 0) {
-      return { trendSummary: `Conditions are expected to be stable ${trendDescription}.` };
-    }
-
-    return {
-      trendSummary: `Weather will change ${trendDescription}: ${changes.join(', ')}.`
-    };
-  };
+  // Weather trend helper retained in utils/geminiPrompt; use centralized prompt builder for AI prompt generation
 
   const getRunTypeLabel = (type) => {
     switch (type) {
@@ -259,75 +212,14 @@ const TomorrowOutfit = ({
     }
   };
 
-  const buildPrompt = () => {
-    if (!wx) return '';
-
-    const getDayWithSuffix = (d) => {
-      if (d > 3 && d < 21) return `${d}th`;
-      switch (d % 10) {
-        case 1: return `${d}st`;
-        case 2: return `${d}nd`;
-        case 3: return `${d}rd`;
-        default: return `${d}th`;
-      }
-    };
-    
-    const now = new Date();
-    const month = now.toLocaleDateString('en-US', { month: 'long' });
-    const day = getDayWithSuffix(now.getDate());
-    const time = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(' ', '');
-    const timestamp = `${month} ${day}, ${time}`;
-    const solarStatus = 'Above Horizon'; // Assume for tomorrow
-
-    const { trendSummary } = analyzeWeatherTrend(tomorrowCardRunType, wx.hourlyForecast);
-    const adjustedTemp = tomorrowData.displayTemp + tempSensitivity * 5;
-
-    return `
-Act as an expert running coach. Your task is to provide a gear recommendation and run strategy based only on the data I provide. Do not use any external tools or web searches; use reasoning alone.
-
-1. Input Data:
-• Timestamp: ${timestamp}
-• Weather (Current):
-  • Air Temp: ${(adjustedTemp + 5).toFixed(1)}°${unit} (Adjusted for runner's preference)
-  • Dew Point: ${tomorrowData ? 'N/A' : ''}°${unit} // Placeholder
-  • Humidity: ${wx.humidity?.toFixed(0)}%
-  • Wind: ${wx.wind?.toFixed(1)} mph
-  • Solar Angle: ${solarStatus}
-  • Solar Radiation: ${wx.solarRadiation?.toFixed(0)} W/m2
-  • Cloud Cover: ${wx.cloud?.toFixed(0)}%
-  • Precipitation %: ${wx.precipProb?.toFixed(0)}%
-  • Precipitation amount (in): ${wx.precip?.toFixed(2)}in
-  • UV: ${wx.uv?.toFixed(1)}
-• Weather Trend:
-  • ${trendSummary}
-• Runner Profile:
-  • Sex: ${gender || 'Male'}
-  • Effort: ${getRunTypeLabel(tomorrowCardRunType)}
-• Master Gear List (Choose only from these items):
-  • ${MASTER_GEAR_LIST}
-
-2. Required Output Format:
-You must structure your response in these three exact sections:
-
-Weather Analysis
-First, calculate the "Feels Like" temperature, by analyzing all the weather data . Thoroughly analyze what this means for the run. Note your all your calculations, and explain how that influences the feel and gear choices (e.g., no sun for warmth, visibility). Also, comment on the weather trend and how it will affect the run.
-
-Gear Recommendation (${getRunTypeLabel(tomorrowCardRunType)})
-Based on your analysis and the Runner Profile (including their temperature preference), create a simple, clean list of items selected only from the Master Gear List. The gear should be adaptable to the changing conditions noted in the weather trend.
-• This list must be ordered from head to toe.
-• Do not include any extra text, explanations, or bullet points in this section—just the list of item names.
-
-Run Strategy
-In 20-40 words, provide a helpful run strategy tip for an experienced runner based on these specific conditions. Incorporate advice on how to manage the changing weather conditions (e.g., when to shed a layer, how to handle increasing wind/rain).
-    `.trim();
-  };
+  // buildGeminiPrompt will be used when generating AI prompts for tomorrow's outfit
 
   const handleGenerateAI = async () => {
     if (!wx) return;
 
     // Respect site-wide cooldown
-    if (!isReady()) {
-      setAiResult({ ...aiResult, error: `Please wait ${formatMs(getRemainingMs())} before generating again.` });
+    if (!isReady) {
+      setAiResult({ ...aiResult, error: `Please wait ${formatMs(remainingMs)} before generating again.` });
       return;
     }
 
@@ -338,11 +230,27 @@ In 20-40 words, provide a helpful run strategy tip for an experienced runner bas
 
     setAiResult({ ...aiResult, loading: true, error: null });
 
-    const prompt = buildPrompt();
+    // Construct a minimal derived object for the tomorrow prompt and use the shared builder
+    const now = new Date();
+    const t = new Date(now);
+    t.setDate(t.getDate() + 1);
+    t.setHours(tomorrowRunHour, 0, 0, 0);
+    const targetTs = t.getTime();
+    const solarElevation = wx.place?.lat != null && wx.place?.lon != null
+      ? calculateSolarElevation({ latitude: wx.place.lat, longitude: wx.place.lon, timestamp: targetTs })
+      : 0;
+
+    const derivedForPrompt = {
+      tempDisplay: tomorrowData.displayTemp,
+      dewPointDisplay: null,
+      solarElevation,
+    };
+
+    const prompt = buildGeminiPrompt({ derived: derivedForPrompt, wx, unit, gender, runType: tomorrowCardRunType, tempSensitivity });
     const result = await generateGearRecommendation(prompt);
 
     if (result.success) {
-      try { setLastUsed(); } catch(e) { }
+      try { startCooldown(); } catch(e) { }
       let mapped = [];
       try {
         mapped = mapAiOutput(result.data || '');
@@ -358,18 +266,7 @@ In 20-40 words, provide a helpful run strategy tip for an experienced runner bas
     }
   };
 
-  // Cooldown tick: update remainingMs every 500ms and listen for cross-tab updates
-  useEffect(() => {
-    const tick = () => setRemainingMs(getRemainingMs());
-    tick();
-    const id = setInterval(tick, 500);
-    const onUpdated = () => tick();
-    window.addEventListener('aiCooldownUpdated', onUpdated);
-    return () => {
-      clearInterval(id);
-      window.removeEventListener('aiCooldownUpdated', onUpdated);
-    };
-  }, []);
+  // Cooldown state provided by AiCooldownContext
 
   if (!tomorrowData) return null;
 
@@ -509,18 +406,18 @@ In 20-40 words, provide a helpful run strategy tip for an experienced runner bas
                   </button>
                   <button
                     onClick={handleGenerateAI}
-                    disabled={aiResult.loading || !isReady()}
+                    disabled={aiResult.loading || !isReady}
                     className={`relative overflow-hidden rounded px-2.5 py-1 text-xs font-medium transition-colors ${
                       tomorrowCardOption === 'C'
                         ? 'bg-sky-500 text-white dark:bg-sky-600'
                         : 'bg-slate-200 text-slate-600 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
-                    } ${aiResult.loading || !isReady() ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    } ${aiResult.loading || !isReady ? 'opacity-60 cursor-not-allowed' : ''}`}
                   >
                     {/* progress bar overlay */}
-                    {(!isReady() || aiResult.loading) && (
-                      <div className="absolute left-0 top-0 h-full bg-sky-400/30 dark:bg-sky-500/30" style={{ width: `${(1 - getRemainingMs() / COOLDOWN_MS) * 100}%`, pointerEvents: 'none', transition: 'width 300ms linear' }} />
+                    {(!isReady || aiResult.loading) && (
+                      <div className="absolute left-0 top-0 h-full bg-sky-400/30 dark:bg-sky-500/30" style={{ width: `${(1 - remainingMs / COOLDOWN_MS) * 100}%`, pointerEvents: 'none', transition: 'width 300ms linear' }} />
                     )}
-                    <span className="relative z-10">{aiResult.loading ? 'Generating...' : (isReady() ? 'AI' : formatMs(getRemainingMs()))}</span>
+                    <span className="relative z-10">{aiResult.loading ? 'Generating...' : (isReady ? 'AI' : formatMs(remainingMs))}</span>
                   </button>
                 </div>
               </div>

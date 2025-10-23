@@ -110,7 +110,7 @@ export const GEAR_INFO = {
     whenToWear: "Cold weather (30-45°F) with wind or light precipitation.",
     tips: "Look for reflective details for visibility. Pit zips help regulate temperature.",
     tempRange: "30-45°F",
-    image: null, // Path to image file (e.g., '/images/gear/light_jacket.png')
+    image: '/images/gear/light_jacket.png'
   },
   insulated_jacket: {
     name: "Insulated Jacket",
@@ -186,7 +186,7 @@ export const GEAR_INFO = {
     whenToWear: "Cool weather (35-45°F) when ears need protection but a beanie is too warm.",
     tips: "Perfect middle ground between bare head and beanie. Stays in place better than hats.",
     tempRange: "35-45°F",
-    image: null, // Path to image file (e.g., '/images/gear/headband.png')
+    image: '/images/gear/headband.png'
   },
   beanie: {
     name: "Running Beanie",
@@ -195,7 +195,7 @@ export const GEAR_INFO = {
     whenToWear: "Cold weather (below 35°F). Essential when temperature drops significantly.",
     tips: "You lose 10% of body heat through your head. Breathable fabric prevents overheating.",
     tempRange: "Below 35°F",
-    image: null, // Path to image file (e.g., '/images/gear/beanie.png')
+    image: '/images/gear/beanie.png'
   },
   balaclava: {
     name: "Balaclava",
@@ -213,7 +213,7 @@ export const GEAR_INFO = {
     whenToWear: "Cool mornings (40-50°F) when hands need light coverage.",
     tips: "Touch-screen compatible fingertips let you use your phone. Easy to pocket if you warm up.",
     tempRange: "40-50°F",
-    image: null, // Path to image file (e.g., '/images/gear/light_gloves.png')
+    image: '/images/gear/light_gloves.png'
   },
   medium_gloves: {
     name: "Medium Gloves",
@@ -222,7 +222,7 @@ export const GEAR_INFO = {
     whenToWear: "Cold weather (25-40°F) or windy conditions.",
     tips: "Windproof shell on palm side. Moisture-wicking liner keeps hands dry.",
     tempRange: "25-40°F",
-    image: null, // Path to image file (e.g., '/images/gear/medium_gloves.png')
+    image: '/images/gear/medium_gloves.png'
   },
   mittens: {
     name: "Running Mittens",

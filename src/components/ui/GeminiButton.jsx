@@ -5,7 +5,8 @@ import { Button } from './Button';
 import { generateGearRecommendation, isGeminiAvailable } from '../../utils/geminiService';
 import { mapAiOutput } from '../../utils/aiMapper';
 import { buildGeminiPrompt } from '../../utils/geminiPrompt';
-import aiCooldown, { getRemainingMs, isReady, setLastUsed, COOLDOWN_MS, formatMs } from '../../utils/aiCooldown';
+import { useAiCooldown } from '../context/AiCooldownContext.js';
+import { formatMs } from '../../utils/aiCooldown';
 
 const MASTER_GEAR_LIST = [
   'Sports Bra', 'Tank Top', 'Short-Sleeve Tech Tee', 'Long-Sleeve Base', 'extra layer Short-Sleeve Tech Tee',
@@ -76,7 +77,7 @@ const analyzeWeatherTrend = (runType, hourlyForecast) => {
 const GeminiButton = ({ derived, wx, unit, gender, runType, tempSensitivity, onResultChange }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [remainingMs, setRemainingMs] = useState(0);
+  const { remainingMs, isReady, startCooldown, COOLDOWN_MS } = useAiCooldown();
 
   const getRunTypeLabel = (type) => {
     switch (type) {
@@ -116,7 +117,7 @@ Act as an expert running coach. Your task is to provide a gear recommendation an
 1. Input Data:
 • Timestamp: ${timestamp}
 • Weather (Current):
-  • Air Temp: ${(adjustedTemp + 5).toFixed(1)}°${unit} (Adjusted for runner's preference)
+  • Air Temp: ${adjustedTemp.toFixed(1)}°${unit} (Adjusted for runner's preference)
   • Dew Point: ${derived.dewPointDisplay?.toFixed(1)}°${unit}
   • Humidity: ${wx.humidity?.toFixed(0)}%
   • Wind: ${wx.wind?.toFixed(1)} mph
@@ -154,7 +155,7 @@ In 20-40 words, provide a helpful run strategy tip for an experienced runner bas
   useEffect(() => {
     if (!derived || !wx) return;
     try {
-      const promptText = buildPrompt();
+      const promptText = buildGeminiPrompt({ derived, wx, unit, gender, runType, tempSensitivity });
       // Deliberately log prompt for debugging/audit (no secrets included)
       console.log('--- Gemini prompt (auto-logged on mount) ---\n', promptText);
     } catch (e) {
@@ -163,18 +164,7 @@ In 20-40 words, provide a helpful run strategy tip for an experienced runner bas
     // Only log when the key inputs change
   }, [derived, wx, unit, gender, runType, tempSensitivity]);
 
-  // Cooldown tick: update remainingMs every 500ms and listen for cross-tab updates
-  useEffect(() => {
-    const tick = () => setRemainingMs(getRemainingMs());
-    tick();
-    const id = setInterval(tick, 500);
-    const onUpdated = (e) => tick();
-    window.addEventListener('aiCooldownUpdated', onUpdated);
-    return () => {
-      clearInterval(id);
-      window.removeEventListener('aiCooldownUpdated', onUpdated);
-    };
-  }, []);
+  // Cooldown state provided by AiCooldownContext
 
   const handleGenerate = async () => {
     if (!derived || !wx) return;
@@ -196,7 +186,7 @@ In 20-40 words, provide a helpful run strategy tip for an experienced runner bas
     setIsLoading(false);
 
     if (result.success) {
-      try { setLastUsed(); } catch(e) { /* ignore */ }
+      try { startCooldown(); } catch(e) { /* ignore */ }
       // Map AI text output to canonical gear keys
       let mapped = [];
       try {

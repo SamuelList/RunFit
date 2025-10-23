@@ -2354,7 +2354,7 @@ export default function App() {
           cardVariants={cardVariants}
         />
 
-        {/* Main Dashboard */}
+        {/* Main Dashboard + Night/Tomorrow widgets (all need AI cooldown context) */}
         <AiCooldownProvider>
           {
             (() => {
@@ -2405,45 +2405,45 @@ export default function App() {
               return (
                 <CooldownBridge valueProps={valueProps}>
                   <Dashboard />
+
+                  {/* Night Running Conditions Card */}
+                  <NightRunningCard
+                    moonPhase={derived?.moonPhase}
+                    wx={wx}
+                    dewPoint={derived?.dewPointDisplay}
+                    smartNightCard={smartNightCard}
+                    cardVariants={cardVariants}
+                  />
+
+                  {/* Tomorrow's Outfit Card - Subtle Bottom Version (shown only when not evening) */}
+                  {!isEvening && showTomorrowOutfit && derived && wx?.hourlyForecast?.length > 0 && (
+                    <TomorrowOutfit
+                      wx={wx}
+                      tomorrowRunHour={tomorrowRunHour}
+                      tomorrowCardRunType={tomorrowCardRunType}
+                      tomorrowCardOption={tomorrowCardOption}
+                      setTomorrowCardRunType={setTomorrowCardRunType}
+                      setTomorrowRunType={setTomorrowRunType}
+                      setTomorrowCardOption={setTomorrowCardOption}
+                      setShowTimePickerModal={setShowTimePickerModal}
+                      outfitFor={outfitFor}
+                      getDisplayedScore={getDisplayedScore}
+                      scoreLabel={scoreLabel}
+                      scoreBasedTone={scoreBasedTone}
+                      coldHands={coldHands}
+                      gender={gender}
+                      runnerBoldness={runnerBoldness}
+                      tempSensitivity={tempSensitivity}
+                      unit={unit}
+                      variant="compact"
+                      cardVariants={cardVariants}
+                    />
+                  )}
                 </CooldownBridge>
               );
             })()
           }
         </AiCooldownProvider>
-
-        {/* Night Running Conditions Card */}
-        <NightRunningCard
-          moonPhase={derived?.moonPhase}
-          wx={wx}
-          dewPoint={derived?.dewPointDisplay}
-          smartNightCard={smartNightCard}
-          cardVariants={cardVariants}
-        />
-
-        {/* Tomorrow's Outfit Card - Subtle Bottom Version (shown only when not evening) */}
-        {!isEvening && showTomorrowOutfit && derived && wx?.hourlyForecast?.length > 0 && (
-          <TomorrowOutfit
-            wx={wx}
-            tomorrowRunHour={tomorrowRunHour}
-            tomorrowCardRunType={tomorrowCardRunType}
-            tomorrowCardOption={tomorrowCardOption}
-            setTomorrowCardRunType={setTomorrowCardRunType}
-            setTomorrowRunType={setTomorrowRunType}
-            setTomorrowCardOption={setTomorrowCardOption}
-            setShowTimePickerModal={setShowTimePickerModal}
-            outfitFor={outfitFor}
-            getDisplayedScore={getDisplayedScore}
-            scoreLabel={scoreLabel}
-            scoreBasedTone={scoreBasedTone}
-            coldHands={coldHands}
-            gender={gender}
-            runnerBoldness={runnerBoldness}
-            tempSensitivity={tempSensitivity}
-            unit={unit}
-            variant="compact"
-            cardVariants={cardVariants}
-          />
-        )}
 
   <motion.footer 
     className="mt-6 text-center text-sm text-gray-400 dark:text-slate-500"
