@@ -8,6 +8,7 @@ import { ForecastCard } from './weather';
 import { useAppContext } from './context/AppContext';
 import CopyWeatherButton from './ui/CopyWeatherButton';
 import GeminiButton from './ui/GeminiButton';
+import WeatherAnalysisButton from './ui/WeatherAnalysisButton';
 import { Sparkles } from 'lucide-react';
 
 const Dashboard = () => {
@@ -80,16 +81,9 @@ const Dashboard = () => {
                                     { label: "A.I. (beta)", value: "C" },
                                 ]}
                             />
-                            {activeOption === 'C' && (
+                            {activeOption === 'C' && aiResult.data && (
                                 <div className="mt-2">
-                                    <CopyWeatherButton
-                                        derived={derived}
-                                        wx={wx}
-                                        unit={unit}
-                                        gender={gender}
-                                        runType={runType}
-                                        tempSensitivity={tempSensitivity}
-                                    />
+                                    <WeatherAnalysisButton aiData={aiResult.data} />
                                 </div>
                             )}
                         </div>
@@ -240,37 +234,7 @@ const Dashboard = () => {
                                             <p className="text-sm font-semibold">Perfect alignment! Performance and comfort recommendations match today—this outfit optimizes both.</p>
                                         </div>
                                     </motion.div>
-                                ) : (
-                                    <motion.div
-                                        className="mt-4 rounded-xl border border-blue-200/60 dark:border-blue-500/30 bg-blue-50/60 dark:bg-blue-500/10 px-4 py-3"
-                                        initial={{ opacity: 0, y: 10 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ delay: 0.3 }}
-                                    >
-                                        <div className="flex items-start gap-2">
-                                            <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
-                                            {activeOption === 'C' ? (
-                                                <div className="flex items-center">
-                                                    <CopyWeatherButton
-                                                        derived={derived}
-                                                        wx={wx}
-                                                        unit={unit}
-                                                        gender={gender}
-                                                        runType={runType}
-                                                        tempSensitivity={tempSensitivity}
-                                                    />
-                                                </div>
-                                            ) : (
-                                                // When in AI tab we don't show the Performance/Comfort description
-                                                <p className="text-sm font-semibold leading-relaxed text-blue-800 dark:text-blue-200">
-                                                    {activeOption === "A"
-                                                        ? "Performance-focused: Optimized for speed and efficiency. May sacrifice some warmth/comfort."
-                                                        : "Comfort-focused: Prioritizes warmth and protection. May feel slightly overdressed during hard efforts."}
-                                                </p>
-                                            )}
-                                        </div>
-                                    </motion.div>
-                                )}
+                                ) : null}
                             </>
                         ) : (
                             <div className="space-y-2">
