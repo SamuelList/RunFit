@@ -63,6 +63,7 @@ const TomorrowOutfit = ({
   cardVariants
 }) => {
   const [aiResult, setAiResult] = useState({ data: null, mapped: null, loading: false, error: null });
+  const [info, setInfo] = useState(null);
   const { remainingMs, isReady, startCooldown, COOLDOWN_MS } = useAiCooldown();
 
   const tomorrowData = useMemo(() => {
@@ -209,6 +210,15 @@ const TomorrowOutfit = ({
     }
 
     setAiResult({ ...aiResult, loading: true, error: null });
+
+    // Start cooldown immediately when user clicks generate to account for input tokens being consumed
+    try { startCooldown(); } catch (e) { /* ignore */ }
+
+    // transient info hint
+    try {
+      setInfo('Tokens consumed — cooldown started');
+      setTimeout(() => setInfo(null), 4000);
+    } catch (e) { /* ignore */ }
 
     // Construct a minimal derived object for the tomorrow prompt and use the shared builder
     const now = new Date();
@@ -447,6 +457,11 @@ const TomorrowOutfit = ({
               </div>
             </div>
           </div>
+          {info && (
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="mt-3 flex items-start gap-2 p-2 bg-sky-50 border border-sky-100 rounded-lg text-sm text-sky-800">
+              <span className="text-sm">{info}</span>
+            </motion.div>
+          )}
           </CardContent>
         </Card>
       </motion.div>

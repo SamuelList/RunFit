@@ -13,6 +13,7 @@ import { formatMs } from '../../utils/aiCooldown';
 const GeminiButton = ({ derived, wx, unit, gender, runType, tempSensitivity, onResultChange }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [info, setInfo] = useState(null);
   const { remainingMs, isReady, startCooldown, COOLDOWN_MS } = useAiCooldown();
 
   const getRunTypeLabel = (type) => {
@@ -48,6 +49,15 @@ const GeminiButton = ({ derived, wx, unit, gender, runType, tempSensitivity, onR
     setIsLoading(true);
     setError(null);
     onResultChange?.({ loading: true });
+
+    // Start cooldown immediately on user action to account for input tokens being consumed
+    try { startCooldown(); } catch (e) { /* ignore */ }
+
+    // show transient info hint
+    try {
+      setInfo('Tokens consumed — cooldown started');
+      setTimeout(() => setInfo(null), 4000);
+    } catch (e) { /* ignore */ }
 
     const prompt = buildGeminiPrompt({ derived, wx, unit, gender, runType, tempSensitivity });
     const result = await generateGearRecommendation(prompt);
@@ -127,6 +137,15 @@ const GeminiButton = ({ derived, wx, unit, gender, runType, tempSensitivity, onR
         >
           <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
           <span>{error}</span>
+        </motion.div>
+      )}
+      {info && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-start gap-2 p-2 bg-sky-50 border border-sky-100 rounded-lg text-sm text-sky-800"
+        >
+          <span className="text-sm">{info}</span>
         </motion.div>
       )}
     </div>
