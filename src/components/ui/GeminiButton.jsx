@@ -50,21 +50,15 @@ const GeminiButton = ({ derived, wx, unit, gender, runType, tempSensitivity, onR
     setError(null);
     onResultChange?.({ loading: true });
 
-    // Start cooldown immediately on user action to account for input tokens being consumed
-    try { startCooldown(); } catch (e) { /* ignore */ }
-
-    // show transient info hint
-    try {
-      setInfo('Tokens consumed — cooldown started');
-      setTimeout(() => setInfo(null), 4000);
-    } catch (e) { /* ignore */ }
-
     const prompt = buildGeminiPrompt({ derived, wx, unit, gender, runType, tempSensitivity });
     const result = await generateGearRecommendation(prompt);
 
     setIsLoading(false);
 
     if (result.success) {
+      // Start cooldown after successful response
+      try { startCooldown(); } catch (e) { /* ignore */ }
+      
       // If the service indicates we retried with a flash model, show a brief info hint
       if (result.note === 'retried-with-flash') {
         try {
