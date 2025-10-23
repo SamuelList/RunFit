@@ -81,9 +81,16 @@ const Dashboard = () => {
                                     { label: "A.I. (beta)", value: "C" },
                                 ]}
                             />
-                            {activeOption === 'C' && aiResult.data && (
+                            {activeOption === 'C' && (
                                 <div className="mt-2">
-                                    <WeatherAnalysisButton aiData={aiResult.data} />
+                                    <CopyWeatherButton
+                                        derived={derived}
+                                        wx={wx}
+                                        unit={unit}
+                                        gender={gender}
+                                        runType={runType}
+                                        tempSensitivity={tempSensitivity}
+                                    />
                                 </div>
                             )}
                         </div>
@@ -147,17 +154,12 @@ const Dashboard = () => {
                                         )}
                                             </motion.div>
 
-                                            {/* Copy prompt button - always visible for AI tab */}
-                                            <div className="mt-2">
-                                                <CopyWeatherButton
-                                                    derived={derived}
-                                                    wx={wx}
-                                                    unit={unit}
-                                                    gender={gender}
-                                                    runType={runType}
-                                                    tempSensitivity={tempSensitivity}
-                                                />
-                                            </div>
+                                            {/* Weather Analysis button - visible after AI results */}
+                                            {aiResult.data && (
+                                                <div className="mt-2">
+                                                    <WeatherAnalysisButton aiData={aiResult.data} />
+                                                </div>
+                                            )}
                                     </>
                                 ) : (
                                     <motion.div
