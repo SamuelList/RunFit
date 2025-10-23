@@ -172,7 +172,7 @@ export async function fetchWeather(location, unit) {
   //     pressureMsl: data?.hourly?.pressure_msl?.[idx] + ' hPa'
   //   });
   //   console.log('========================================');
-  // }
+  }
 
   const fallbackSunrise = Array.isArray(data?.daily?.sunrise) ? data.daily.sunrise.filter(Boolean) : [];
   const fallbackSunset = Array.isArray(data?.daily?.sunset) ? data.daily.sunset.filter(Boolean) : [];
@@ -253,8 +253,8 @@ export async function fetchWeather(location, unit) {
       timezone,
     };
   } else if (secondaryResult.status === 'rejected') {
-      console.warn('Secondary weather source unavailable', secondaryResult.reason);
-    }
+    console.warn('Secondary weather source unavailable', secondaryResult.reason);
+  }
 
   combined.hourlyForecast = hourlyForecast;
   const { provider: _ignoredProvider, ...finalWx } = combined;
