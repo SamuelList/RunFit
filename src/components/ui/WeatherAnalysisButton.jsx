@@ -9,54 +9,22 @@ const WeatherAnalysisButton = ({ aiData }) => {
   const extractWeatherAnalysis = (text) => {
     if (!text) return 'No weather analysis available.';
     
-    // Strategy 1: Match ## Weather Analysis (with content until next ## or **Gear/**Run)
-    let match = text.match(/##\s*Weather\s+Analysis\s*\n+([\s\S]*?)(?=\n*##\s*Gear|\n*\*\*Gear|\n*##\s*Run|\n*\*\*Run|$)/i);
-    if (match && match[1].trim()) {
-      return match[1].trim();
+    // Same extraction pattern as Run Strategy (which works reliably)
+    const analysisMatch = text.match(/##?\s*Weather\s+Analysis[:\s]*(.*?)(?=##|$)/is);
+    if (analysisMatch && analysisMatch[1]) {
+      return analysisMatch[1].trim();
     }
     
-    // Strategy 2: Match **Weather Analysis** (bold markdown)
-    match = text.match(/\*\*Weather\s+Analysis\*\*\s*\n+([\s\S]*?)(?=\n*\*\*Gear\s+Recommendation|\n*\*\*Run\s+Strategy|\n*##\s*Gear|\n*##\s*Run|$)/i);
-    if (match && match[1].trim()) {
-      return match[1].trim();
-    }
-    
-    // Strategy 3: Line-by-line extraction (handles variations in formatting)
+    // Fallback: look for analysis without header (same as Run Strategy fallback)
     const lines = text.split('\n');
-    const startIdx = lines.findIndex(l => 
-      /^##\s*Weather\s+Analysis/i.test(l) || 
-      /^\*\*Weather\s+Analysis\*\*/i.test(l)
-    );
-    
-    if (startIdx !== -1) {
-      // Find where the next section starts
-      let endIdx = -1;
-      for (let i = startIdx + 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        // Stop at next major section
-        if (
-          /^##\s*Gear/i.test(line) ||
-          /^##\s*Run/i.test(line) ||
-          /^\*\*Gear\s+Recommendation/i.test(line) ||
-          /^\*\*Run\s+Strategy/i.test(line) ||
-          /^\*\*\*$/i.test(line) // Stop at horizontal rule
-        ) {
-          endIdx = i;
-          break;
-        }
-      }
-      
-      const contentLines = endIdx === -1 
-        ? lines.slice(startIdx + 1)
-        : lines.slice(startIdx + 1, endIdx);
-      
-      const content = contentLines.join('\n').trim();
-      if (content) {
-        return content;
-      }
+    const analysisStart = lines.findIndex(l => /weather\s+analysis/i.test(l));
+    if (analysisStart >= 0) {
+      const nextSection = lines.slice(analysisStart + 1).findIndex(l => /^#+/.test(l));
+      const endIdx = nextSection >= 0 ? analysisStart + 1 + nextSection : lines.length;
+      return lines.slice(analysisStart + 1, endIdx).join('\n').trim();
     }
     
-    return 'Weather analysis not found in response.';
+    return 'No weather analysis found in AI output.';
   };
 
   const weatherAnalysis = extractWeatherAnalysis(aiData);
@@ -82,17 +50,18 @@ const WeatherAnalysisButton = ({ aiData }) => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999]"
+              className="fixed inset-0 bg-black/60 z-[9999]"
               onClick={() => setIsModalOpen(false)}
             />
             
             {/* Modal */}
-            <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 pointer-events-none">
+            <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="relative w-full max-w-md rounded-2xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-2xl pointer-events-auto"
+                onClick={(e) => e.stopPropagation()}
+                className="relative w-full max-w-md rounded-2xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-2xl"
               >
                 {/* Close Button */}
                 <button

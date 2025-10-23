@@ -1,6 +1,6 @@
 import { Redis } from '@upstash/redis';
 
-const COOLDOWN_MS = Number(process.env.COOLDOWN_MS || 120000);
+const COOLDOWN_MS = Number(process.env.COOLDOWN_MS || 60000);
 const redis = new Redis({ url: process.env.UPSTASH_REDIS_REST_URL, token: process.env.UPSTASH_REDIS_REST_TOKEN });
 
 const KEY = 'ai:last:global';
