@@ -148,7 +148,7 @@ export const GEAR_INFO = {
     whenToWear: "Cool to cold weather (30-50°F). Essential for winter running.",
     tips: "Compression tights aid recovery. Fleece-lined versions add extra warmth.",
     tempRange: "30-50°F",
-    image: null, // Path to image file (e.g., '/images/gear/tights.png')
+    image: '/images/gear/tights.png'
   },
   thermal_tights: {
     name: "Thermal Tights",
@@ -157,7 +157,7 @@ export const GEAR_INFO = {
     whenToWear: "Very cold weather (below 30°F) or high wind chill.",
     tips: "Double-layer construction traps heat. May need to size up for layering.",
     tempRange: "Below 30°F",
-    image: null, // Path to image file (e.g., '/images/gear/thermal_tights.png')
+    image: '/images/gear/tights.png'
   },
   
   // Head & Hands
@@ -177,7 +177,7 @@ export const GEAR_INFO = {
     whenToWear: "Rain (40%+ chance). Essential for keeping vision clear in wet conditions.",
     tips: "Brim keeps rain off glasses. Look for water-resistant fabric.",
     tempRange: "All temperatures",
-    image: null, // Path to image file (e.g., '/images/gear/brim_cap.png')
+    image: '/images/gear/cap.png'
   },
   headband: {
     name: "Ear Band",
@@ -240,7 +240,7 @@ export const GEAR_INFO = {
     whenToWear: "Extreme cold (below 10°F) or frostbite-level wind chill.",
     tips: "Can be worn alone in milder cold. Adds versatility to your hand protection system.",
     tempRange: "Below 10°F",
-    image: null, // Path to image file (e.g., '/images/gear/mittens_liner.png')
+    image: '/images/gear/light_gloves.png'
   },
   
   // Accessories
@@ -269,7 +269,7 @@ export const GEAR_INFO = {
     whenToWear: "Very cold (below 33°F) or very windy conditions (18+ mph).",
     tips: "Pull up over nose and mouth in extreme cold. Prevents breathing cold air directly.",
     tempRange: "Below 33°F",
-    image: null, // Path to image file (e.g., '/images/gear/neck_gaiter.png')
+    image: '/images/gear/neck_gaiter.png'
   },
   windbreaker: {
     name: "Windbreaker",

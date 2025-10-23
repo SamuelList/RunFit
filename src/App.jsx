@@ -2221,6 +2221,82 @@ export default function App() {
             </Button>
           </motion.div>
         </motion.header>
+        {/* Render prominent Tomorrow card at the very top during evening (needs cooldown context) */}
+        <AiCooldownProvider>
+          {(() => {
+            const valueProps = {
+              derived,
+              wx,
+              staggerContainer,
+              cardVariants,
+              listItemVariants,
+              optionsDiffer,
+              activeOption,
+              setActiveOption,
+              runType,
+              optionTitle,
+              activeItems,
+              GEAR_INFO,
+              GEAR_ICONS,
+              UserRound,
+              setSelectedOutfitItem,
+              aiAppliedItems,
+              setAiAppliedItems,
+              Info,
+              Flame,
+              TrendingUp,
+              Hand,
+              getDisplayedScore,
+              runnerBoldness,
+              unit,
+              isEvening,
+              showTomorrowOutfit,
+              tomorrowRunHour,
+              tomorrowCardRunType,
+              tomorrowCardOption,
+              setTomorrowCardRunType,
+              setTomorrowRunType,
+              setTomorrowCardOption,
+              setShowTimePickerModal,
+              outfitFor,
+              scoreLabel,
+              scoreBasedTone,
+              coldHands,
+              gender,
+              tempSensitivity,
+              displayedScoreProps,
+              gaugeData,
+              setShowInsights,
+            };
+            return (
+              <CooldownBridge valueProps={valueProps}>
+                {isEvening && showTomorrowOutfit && derived && wx?.hourlyForecast?.length > 0 && (
+                  <TomorrowOutfit
+                    wx={wx}
+                    tomorrowRunHour={tomorrowRunHour}
+                    tomorrowCardRunType={tomorrowCardRunType}
+                    tomorrowCardOption={tomorrowCardOption}
+                    setTomorrowCardRunType={setTomorrowCardRunType}
+                    setTomorrowRunType={setTomorrowRunType}
+                    setTomorrowCardOption={setTomorrowCardOption}
+                    setShowTimePickerModal={setShowTimePickerModal}
+                    outfitFor={outfitFor}
+                    getDisplayedScore={getDisplayedScore}
+                    scoreLabel={scoreLabel}
+                    scoreBasedTone={scoreBasedTone}
+                    coldHands={coldHands}
+                    gender={gender}
+                    runnerBoldness={runnerBoldness}
+                    tempSensitivity={tempSensitivity}
+                    unit={unit}
+                    variant="prominent"
+                    cardVariants={cardVariants}
+                  />
+                )}
+              </CooldownBridge>
+            );
+          })()}
+        </AiCooldownProvider>
 
         {/* Smart Night Running Card - Shows at top when enabled and conditions are met */}
         {smartNightCard && derived?.moonPhase && derived?.moonPosition && (() => {
@@ -2289,31 +2365,6 @@ export default function App() {
             </motion.div>
           );
         })()}
-
-        {/* Tomorrow's Outfit Card - Prominent Evening Version */}
-        {isEvening && showTomorrowOutfit && derived && wx?.hourlyForecast?.length > 0 && (
-          <TomorrowOutfit
-            wx={wx}
-            tomorrowRunHour={tomorrowRunHour}
-            tomorrowCardRunType={tomorrowCardRunType}
-            tomorrowCardOption={tomorrowCardOption}
-            setTomorrowCardRunType={setTomorrowCardRunType}
-            setTomorrowRunType={setTomorrowRunType}
-            setTomorrowCardOption={setTomorrowCardOption}
-            setShowTimePickerModal={setShowTimePickerModal}
-            outfitFor={outfitFor}
-            getDisplayedScore={getDisplayedScore}
-            scoreLabel={scoreLabel}
-            scoreBasedTone={scoreBasedTone}
-            coldHands={coldHands}
-            gender={gender}
-            runnerBoldness={runnerBoldness}
-            tempSensitivity={tempSensitivity}
-            unit={unit}
-            variant="prominent"
-            cardVariants={cardVariants}
-          />
-        )}
 
         {/* Main Weather Card - Run Controls */}
         <CurrentConditions
@@ -2405,6 +2456,8 @@ export default function App() {
               return (
                 <CooldownBridge valueProps={valueProps}>
                   <Dashboard />
+
+                  {/* (Prominent TomorrowOutfit rendered above header during evening; removed here to avoid duplicate) */}
 
                   {/* Night Running Conditions Card */}
                   <NightRunningCard
