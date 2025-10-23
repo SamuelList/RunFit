@@ -98,9 +98,8 @@ const GeminiButton = ({ derived, wx, unit, gender, runType, tempSensitivity, onR
       <motion.div whileHover={{ scale: isDisabled ? 1 : 1.05 }} whileTap={{ scale: isDisabled ? 1 : 0.95 }}>
         <div className="relative">
           <Button
-            variant="outline"
             onClick={handleGenerate}
-            className={`w-full relative overflow-hidden ${isDisabled ? 'opacity-60 cursor-not-allowed' : ''}`}
+            className={`w-full relative overflow-hidden py-3 ${isDisabled ? 'opacity-60 cursor-not-allowed' : 'shadow-xl transform-gpu'} rounded-lg text-sm font-semibold ${isDisabled ? '' : 'bg-gradient-to-r from-sky-500 to-indigo-600 text-white hover:scale-[1.02]'}`}
             disabled={isDisabled}
           >
             {/* progress overlay */}
@@ -113,15 +112,15 @@ const GeminiButton = ({ derived, wx, unit, gender, runType, tempSensitivity, onR
             )}
 
             <span className="relative z-10 flex items-center justify-center">
-              {isLoading ? (
+                  {isLoading ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-5 w-5 mr-3 animate-spin text-white" />
                   Generating...
                 </>
               ) : (
                 <>
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  {isCooldownActive ? formatMs(remainingMs) : 'Generate with AI'}
+                  <Sparkles className="h-5 w-5 mr-3 text-white animate-pulse-slow" />
+                  <span className="uppercase tracking-wide">{isCooldownActive ? formatMs(remainingMs) : 'Generate with AI'}</span>
                 </>
               )}
             </span>

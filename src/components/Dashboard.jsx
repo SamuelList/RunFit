@@ -80,12 +80,25 @@ const Dashboard = () => {
                                     { label: "A.I. (beta)", value: "C" },
                                 ]}
                             />
+                            {activeOption === 'C' && (
+                                <div className="mt-2">
+                                    <CopyWeatherButton
+                                        derived={derived}
+                                        wx={wx}
+                                        unit={unit}
+                                        gender={gender}
+                                        runType={runType}
+                                        tempSensitivity={tempSensitivity}
+                                    />
+                                </div>
+                            )}
                         </div>
                     </CardHeader>
                     <CardContent className="p-4">
                         {derived ? (
                             <>
                                 {activeOption === 'C' ? (
+                                    <>
                                     <motion.div
                                         key="C"
                                         initial={{ opacity: 0, y: 20 }}
@@ -138,7 +151,20 @@ const Dashboard = () => {
                                                 ))}
                                             </motion.div>
                                         )}
-                                    </motion.div>
+                                            </motion.div>
+
+                                            {/* Copy prompt button - always visible for AI tab */}
+                                            <div className="mt-2">
+                                                <CopyWeatherButton
+                                                    derived={derived}
+                                                    wx={wx}
+                                                    unit={unit}
+                                                    gender={gender}
+                                                    runType={runType}
+                                                    tempSensitivity={tempSensitivity}
+                                                />
+                                            </div>
+                                    </>
                                 ) : (
                                     <motion.div
                                         className="space-y-2"
