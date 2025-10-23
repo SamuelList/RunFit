@@ -1,7 +1,7 @@
 // Service Worker for RunFit PWA
 // Provides offline support and caching for better performance
 
-const CACHE_VERSION = '1.2.1';
+const CACHE_VERSION = '1.2.2';
 const CACHE_NAME = `runfit-v${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runfit-runtime-v${CACHE_VERSION}`;
 

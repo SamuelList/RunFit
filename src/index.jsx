@@ -21,6 +21,23 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
       .then(registration => {
         console.log('✓ Service Worker registered:', registration.scope);
         
+        // Listen for updates and auto-reload when new SW is ready
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          console.log('🔄 New Service Worker detected, installing...');
+          
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'activated') {
+              // Check if there's a controller (existing SW)
+              if (navigator.serviceWorker.controller) {
+                console.log('✨ New Service Worker activated, reloading page...');
+                // Reload to get the latest version
+                window.location.reload();
+              }
+            }
+          });
+        });
+        
         // Check for updates periodically
         setInterval(() => {
           registration.update();
