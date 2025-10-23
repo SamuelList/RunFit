@@ -10,7 +10,8 @@ const WeatherAnalysisButton = ({ aiData }) => {
     if (!text) return 'No weather analysis available.';
     
     // Try to extract "Weather Analysis" section from AI output
-    const analysisMatch = text.match(/##?\s*Weather\s+Analysis[:\s]*(.*?)(?=##|$)/is);
+    // Match "## Weather Analysis" or "Weather Analysis:" followed by content until next section
+    const analysisMatch = text.match(/##?\s*Weather\s+Analysis[:\s]*\n*(.*?)(?=\n##\s|\n\*\*[A-Z]|$)/is);
     if (analysisMatch && analysisMatch[1]) {
       return analysisMatch[1].trim();
     }
@@ -19,9 +20,9 @@ const WeatherAnalysisButton = ({ aiData }) => {
     const lines = text.split('\n');
     const analysisStart = lines.findIndex(l => /weather\s+analysis/i.test(l));
     if (analysisStart >= 0) {
-      // Find next section header (##) to stop
+      // Find next section header (## or **) to stop
       const remaining = lines.slice(analysisStart + 1);
-      const nextSectionIdx = remaining.findIndex(l => /^##\s/.test(l));
+      const nextSectionIdx = remaining.findIndex(l => /^##\s|^\*\*[A-Z]/.test(l));
       const endIdx = nextSectionIdx >= 0 ? analysisStart + 1 + nextSectionIdx : lines.length;
       return lines.slice(analysisStart + 1, endIdx).join('\n').trim();
     }
