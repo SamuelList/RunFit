@@ -3,7 +3,9 @@ run this to test on iphone:
 npm run dev -- --host 0.0.0.0 --port 5173
 
 
-
+next:
+- 
+- Migrate existing components (e.g., GeminiButton.jsx, TomorrowOutfit.jsx) to call the React hook useAiCooldown() instead of calling the utils directly (keeps logic in React state and simpler testing).
 
 
 
