@@ -308,7 +308,7 @@ export const GEAR_INFO = {
     image: null, // Path to image file (e.g., '/images/gear/sunscreen.png')
   },
   
-  // Nutrition & Care
+  // Nutrition & Care ;)
   hydration: {
     name: "Water/Hydration",
     category: "Nutrition",
