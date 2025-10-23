@@ -262,6 +262,10 @@ const TomorrowOutfit = ({
       setAiResult({ data: result.data, mapped, loading: false, error: null });
       setTomorrowCardOption('C');
     } else {
+      // If server returned cooldown error, sync client state
+      if (result.error === 'Cooldown' && result.remainingMs) {
+        try { startCooldown(); } catch(e) { /* ignore */ }
+      }
       setAiResult({ ...aiResult, error: result.error, loading: false });
     }
   };

@@ -199,6 +199,10 @@ In 20-40 words, provide a helpful run strategy tip for an experienced runner bas
       // Return both raw text and mapped suggestions to the caller for UI review
       onResultChange?.({ data: result.data, mapped, loading: false });
     } else {
+      // If server returned cooldown error, sync client state
+      if (result.error === 'Cooldown' && result.remainingMs) {
+        try { startCooldown(); } catch(e) { /* ignore */ }
+      }
       setError(result.error);
       onResultChange?.({ error: result.error, loading: false });
     }
