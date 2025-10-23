@@ -14,7 +14,7 @@ function ensureGemini() {
   }
   try {
     const g = new GoogleGenerativeAI(key.trim());
-    model = g.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-2.5-flash' });
+    model = g.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-2.5-pro' });
     console.log('Gemini initialized successfully');
     return true;
   } catch (e) {

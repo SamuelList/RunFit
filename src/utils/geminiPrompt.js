@@ -86,45 +86,68 @@ export function buildGeminiPrompt({ derived, wx, unit = 'F', gender = 'Male', ru
 
   const { trendSummary } = analyzeWeatherTrend(runType, wx.hourlyForecast);
   const adjustedTemp = derived.tempDisplay + tempSensitivity * 5;
+  let gearPrinciple = '';
+  let strategyPrinciple = '';
+
+  if (runType === 'workout') {
+    gearPrinciple = 'The runner will generate significant body heat. Prioritize breathability and minimalism. Select gear to be slightly cool at the start, as the runner will heat up quickly. Avoid overdressing.';
+    strategyPrinciple = 'Focus on managing the high intensity, visibility in the dark, and breathing in the cool air.';
+  } else if (runType === 'easy') {
+    gearPrinciple = 'The runner will generate low-to-moderate body heat. Prioritize warmth and comfort. Select gear that protects from the wind chill, as the runner will not be generating as much heat.';
+    strategyPrinciple = 'Focus on maintaining a comfortable, relaxed effort and enjoying the run despite the dark and cool conditions.';
+  } else { // longRun
+    gearPrinciple = 'The runner will generate steady heat over a long duration. Prioritize moisture management, versatility, and chafe-prevention. Gear must be comfortable for an extended period.';
+    strategyPrinciple = 'Focus on pacing, hydration, and potential fueling. Advise on how to manage the cool conditions for the entire duration.';
+  }
 
   return `
-Act as an expert running coach. Your task is to provide a gear recommendation and run strategy based only on the data I provide. Do not use any external tools or web searches; use reasoning alone.
+Improved Prompt
+
+Role and Goal: Act as an expert running coach. Your task is to provide a gear recommendation and run strategy based only on the data I provide.
+Core Rules:
+1. Use only the data provided in the "Input Data" section.
+2. Do not use any external tools, web searches, or real-time data.
+3. Your response must be based on reasoning and inference from the provided data alone.
+4. Adhere strictly to the "Required Output Format." 
 
 1. Input Data:
-• Timestamp: ${timestamp}
-• Weather (Current):
-  • Air Temp: ${(adjustedTemp + 5).toFixed(1)}°${unit}
-  • Dew Point: ${derived.dewPointDisplay?.toFixed(1)}°${unit}
-  • Humidity: ${wx.humidity?.toFixed(0)}%
-  • Wind: ${wx.wind?.toFixed(1)} mph
-  • Solar Angle: ${solarStatus} (${derived.solarElevation?.toFixed(1)}°)
-  • Solar Radiation: ${wx.solarRadiation?.toFixed(0)} W/m2
-  • Cloud Cover: ${wx.cloud?.toFixed(0)}%
-  • Precipitation %: ${wx.precipProb?.toFixed(0)}%
-  • Precipitation amount (in): ${wx.precip?.toFixed(2)}in
-  • UV: ${wx.uv?.toFixed(1)}
-• Weather Trend:
-  • ${trendSummary}
-• Runner Profile:
-  • Sex: ${gender || 'Male'}
-  • Effort: ${runType === 'easy' ? 'Easy Run' : runType === 'workout' ? 'Hard Workout' : 'Long Run'}
-• Master Gear List (Choose only from these items):
-  • ${MASTER_GEAR_LIST}
+* Timestamp: ${timestamp}
+* Weather (Current):
+    * Air Temp: ${adjustedTemp.toFixed(1)}°${unit}
+    * Dew Point: ${derived.dewPointDisplay?.toFixed(1)}°${unit}
+    * Humidity: ${wx.humidity?.toFixed(0)}%
+    * Wind: ${wx.wind?.toFixed(1)} mph
+    * Solar Angle: ${solarStatus} (${derived.solarElevation?.toFixed(1)}°)
+    * Solar Radiation: ${wx.solarRadiation?.toFixed(0)} W/m2
+    * Cloud Cover: ${wx.cloud?.toFixed(0)}%
+    * Precipitation %: ${wx.precipProb?.toFixed(0)}%
+    * Precipitation amount (in): ${wx.precip?.toFixed(2)}in
+    * UV: ${wx.uv?.toFixed(1)}
+* Weather Trend:
+    * ${trendSummary}
+* Runner Profile:
+    * Sex: ${gender || 'Male'}
+    * Effort: ${runType === 'easy' ? 'Easy Run' : runType === 'workout' ? 'Hard Workout' : 'Long Run'}
+* Master Gear List (Choose only from these items):
+    * ${MASTER_GEAR_LIST}
 
 2. Required Output Format:
 You must structure your response in these three exact sections:
 
 Weather Analysis
-First, calculate the "Feels Like" temperature, by analyzing all the weather data . Thoroughly analyze what this means for the run. Note your all your calculations, and explain how that influences the feel and gear choices (e.g., no sun for warmth, visibility). Also, comment on the weather trend and how it will affect the run.
+First, analyze the "Feels Like" effect (do not perform a mathematical calculation). Synthesize all relevant weather data to estimate the perceived temperature. Explain your reasoning for this perceived feel. Thoroughly analyze what this means for the run. Finally, comment on the weather trend and how its stability simplifies gear choice.
 
 Gear Recommendation (${runType === 'easy' ? 'Easy Run' : runType === 'workout' ? 'Hard Workout' : 'Long Run'})
-Based on your analysis and the Runner Profile (including their temperature preference), create a simple, clean list of items selected only from the Master Gear List. The gear should be adaptable to the changing conditions noted in the weather trend.
-• This list must be ordered from head to toe.
-• Do not include any extra text, explanations, or bullet points in this section—just the list of item names.
+Based on your Weather Analysis and the Adaptive Logic for the given Effort, create a simple, clean list of items selected only from the Master Gear List.
+* Guiding Principle: ${gearPrinciple}
+* Strategy Principle: ${strategyPrinciple}
+* This list must be ordered from head to toe.
+* Do not include any extra text, explanations, or bullet points in this section—just the list of item names.
 
 Run Strategy
-In 30-50 words, provide a helpful run strategy tip for an experienced runner based on these specific conditions. Incorporate advice on how to manage the changing weather conditions.
-    `.trim();
+In 30-50 words, provide a helpful run strategy tip for an experienced runner based on these specific weather conditions. Incorporate advice on how to manage the "${runType === 'easy' ? 'Easy Run' : runType === 'workout' ? 'Hard Workout' : 'Long Run'}" effort in these conditions at this time.
+
+`.trim();
 }
 
 export default buildGeminiPrompt;

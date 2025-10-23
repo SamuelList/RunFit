@@ -83,14 +83,6 @@ const TomorrowOutfit = ({
         .filter(({ time }) => Math.abs(time - searchTime) <= 90 * 60 * 1000)
         .sort((a, b) => Math.abs(a.time - searchTime) - Math.abs(b.time - searchTime))[0]?.slot;
     };
-    const MASTER_GEAR_LIST = [
-      'Sports Bra', 'Tank Top', 'Short-Sleeve Tech Tee', 'Long-Sleeve Base', 'extra layer Short-Sleeve Tech Tee',
-      'Light Jacket', 'Insulated Jacket', 'Split Shorts', 'Running Shorts', 'Running Tights', 'Thermal Tights',
-      'Cap', 'Cap for rain', 'Ear Band', 'Running Beanie', 'Balaclava', 'Light Gloves', 'Mid-weight Gloves',
-      'Running Mittens', 'Glove Liner (under mittens)', 'Arm Sleeves', 'Neck Gaiter', 'Windbreaker',
-      'Packable Rain Shell', 'Sunglasses', 'Sunscreen', 'Water/Hydration', 'Energy Gels/Chews',
-      'Anti-Chafe Balm', 'Light Running Socks', 'Heavy Running Socks', 'Double Socks (layered)'
-    ].join(', ');
     
     
     const hourBefore = findClosestSlot(-1);
@@ -192,14 +184,7 @@ const TomorrowOutfit = ({
     };
   }, [wx, tomorrowRunHour, tomorrowCardRunType, tomorrowCardOption, outfitFor, getDisplayedScore, scoreLabel, scoreBasedTone, coldHands, gender, runnerBoldness, tempSensitivity, unit, variant]);
 
-  const MASTER_GEAR_LIST = [
-    'Sports Bra', 'Tank Top', 'Short-Sleeve Tech Tee', 'Long-Sleeve Base', 'extra layer Short-Sleeve Tech Tee',
-    'Light Jacket', 'Insulated Jacket', 'Split Shorts', 'Running Shorts', 'Running Tights', 'Thermal Tights',
-    'Cap', 'Cap for rain', 'Ear Band', 'Running Beanie', 'Balaclava', 'Light Gloves', 'Mid-weight Gloves',
-    'Running Mittens', 'Glove Liner (under mittens)', 'Arm Sleeves', 'Neck Gaiter', 'Windbreaker',
-    'Packable Rain Shell', 'Sunglasses', 'Sunscreen', 'Water/Hydration', 'Energy Gels/Chews',
-    'Anti-Chafe Balm', 'Light Running Socks', 'Heavy Running Socks', 'Double Socks (layered)'
-  ].join(', ');
+  
 
   // Weather trend helper retained in utils/geminiPrompt; use centralized prompt builder for AI prompt generation
 
@@ -257,11 +242,13 @@ const TomorrowOutfit = ({
       setAiResult({ data: result.data, mapped, loading: false, error: null });
       setTomorrowCardOption('C');
     } else {
-      // If server returned cooldown error, sync client state
+      // If server returned cooldown error, sync client state and show a friendly message
       if (result.error === 'Cooldown' && result.remainingMs) {
         try { startCooldown(); } catch(e) { /* ignore */ }
+        setAiResult({ ...aiResult, error: `Please wait ${formatMs(result.remainingMs)} before generating again.`, loading: false });
+      } else {
+        setAiResult({ ...aiResult, error: result.error, loading: false });
       }
-      setAiResult({ ...aiResult, error: result.error, loading: false });
     }
   };
 
