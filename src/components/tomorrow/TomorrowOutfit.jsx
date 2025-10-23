@@ -223,11 +223,6 @@ const TomorrowOutfit = ({
       return;
     }
 
-    if (!isGeminiAvailable()) {
-      setAiResult({ ...aiResult, error: 'API key not configured. Please add your Gemini API key to the .env file.' });
-      return;
-    }
-
     setAiResult({ ...aiResult, loading: true, error: null });
 
     // Construct a minimal derived object for the tomorrow prompt and use the shared builder

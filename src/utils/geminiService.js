@@ -113,6 +113,8 @@ export const generateGearRecommendation = async (promptText) => {
  * @returns {boolean}
  */
 export const isGeminiAvailable = () => {
+  // When using proxy, assume server has the key
+  if (USE_PROXY) return true;
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   return apiKey && apiKey !== 'your_api_key_here';
 };

@@ -169,13 +169,6 @@ In 20-40 words, provide a helpful run strategy tip for an experienced runner bas
   const handleGenerate = async () => {
     if (!derived || !wx) return;
 
-    // Check if API is available
-    if (!isGeminiAvailable()) {
-      setError('API key not configured. Please add your Gemini API key to the .env file.');
-      onResultChange?.({ error: 'API key not configured' });
-      return;
-    }
-
     setIsLoading(true);
     setError(null);
     onResultChange?.({ loading: true });
@@ -209,7 +202,7 @@ In 20-40 words, provide a helpful run strategy tip for an experienced runner bas
   };
 
   const isCooldownActive = remainingMs > 0;
-  const isDisabled = !derived || !wx || isLoading || !isGeminiAvailable() || isCooldownActive;
+  const isDisabled = !derived || !wx || isLoading || isCooldownActive;
 
   return (
     <div className="space-y-2">
