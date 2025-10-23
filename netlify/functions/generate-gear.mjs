@@ -30,15 +30,20 @@ export async function handler(event) {
     const { prompt } = JSON.parse(event.body || '{}');
     if (!prompt) return { statusCode: 400, body: JSON.stringify({ success: false, error: 'Missing prompt' }) };
 
-    const user = (event.headers && (event.headers['x-user-id'] || event.headers['x-nf-client-connection-ip'] || event.headers['x-forwarded-for'])) || 'anon';
-    const key = `ai:last:${user}`;
+    // Use a global cooldown key (simple approach - all users share cooldown)
+    // For per-user: implement auth and use user ID, or use a cookie-based session ID
+    const key = `ai:last:global`;
     const last = await redis.get(key);
     const now = Date.now();
+    console.log('[function] Checking cooldown. last:', last, 'now:', now, 'diff:', last ? now - Number(last) : 'none');
     if (last && now - Number(last) < COOLDOWN_MS) {
-      return { statusCode: 429, body: JSON.stringify({ success: false, error: 'Cooldown', remainingMs: COOLDOWN_MS - (now - Number(last)) }) };
+      const remaining = COOLDOWN_MS - (now - Number(last));
+      console.log('[function] Cooldown active, remaining:', remaining);
+      return { statusCode: 429, body: JSON.stringify({ success: false, error: 'Cooldown', remainingMs: remaining }) };
     }
 
     await redis.set(key, String(now), { ex: Math.ceil((COOLDOWN_MS + 5000) / 1000) });
+    console.log('[function] Cooldown key set');
 
     if (!ensureGemini()) {
       return { statusCode: 500, body: JSON.stringify({ success: false, error: 'GEMINI_API_KEY not configured' }) };

@@ -44,6 +44,7 @@ export const initializeGemini = () => {
 export const generateGearRecommendation = async (promptText) => {
   try {
     if (USE_PROXY) {
+      console.log('[geminiService] Using proxy mode, calling /api/generate-gear');
       // POST to server proxy which holds the server-side API key and enforces cooldown
       const resp = await fetch('/api/generate-gear', {
         method: 'POST',
@@ -51,7 +52,9 @@ export const generateGearRecommendation = async (promptText) => {
         body: JSON.stringify({ prompt: promptText })
       });
 
+      console.log('[geminiService] Response status:', resp.status);
       const payload = await resp.json();
+      console.log('[geminiService] Response payload:', payload);
       if (!resp.ok) return { success: false, error: payload.error || 'Server error', ...(payload.remainingMs ? { remainingMs: payload.remainingMs } : {}) };
       return { success: true, data: payload.data };
     }
