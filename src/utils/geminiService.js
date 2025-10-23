@@ -27,7 +27,7 @@ export const initializeGemini = () => {
     //  - 'gemini-2.0-flash-exp' -> Older flash/experimental variant (used previously)
     // Note: availability and exact identifiers may vary by account/region. If a model
     // identifier fails, try another or check your Google AI account for supported names.
-    model = genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
+    model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     
     return true;
   } catch (error) {
