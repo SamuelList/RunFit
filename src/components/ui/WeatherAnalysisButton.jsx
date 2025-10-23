@@ -9,35 +9,54 @@ const WeatherAnalysisButton = ({ aiData }) => {
   const extractWeatherAnalysis = (text) => {
     if (!text) return 'No weather analysis available.';
     
-    // Split into lines for precise extraction
-    const lines = text.split('\n');
-    
-    // Find the Weather Analysis section start
-    const startIdx = lines.findIndex(l => 
-      /^##\s*Weather\s+Analysis/i.test(l) || 
-      /^\*\*Weather\s+Analysis/i.test(l) ||
-      /^Weather\s+Analysis:/i.test(l)
-    );
-    
-    if (startIdx === -1) {
-      return 'No weather analysis section found.';
+    // Strategy 1: Match ## Weather Analysis (with content until next ## or **Gear/**Run)
+    let match = text.match(/##\s*Weather\s+Analysis\s*\n+([\s\S]*?)(?=\n*##\s*Gear|\n*\*\*Gear|\n*##\s*Run|\n*\*\*Run|$)/i);
+    if (match && match[1].trim()) {
+      return match[1].trim();
     }
     
-    // Find the next section (Gear Recommendation, Run Strategy, or any ## header)
-    const endIdx = lines.findIndex((l, idx) => {
-      if (idx <= startIdx) return false;
-      return /^##\s*(?!Weather\s+Analysis)/i.test(l) || 
-             /^\*\*(?:Gear\s+Recommendation|Run\s+Strategy)/i.test(l) ||
-             /^Gear\s+Recommendation:/i.test(l) ||
-             /^Run\s+Strategy:/i.test(l);
-    });
+    // Strategy 2: Match **Weather Analysis** (bold markdown)
+    match = text.match(/\*\*Weather\s+Analysis\*\*\s*\n+([\s\S]*?)(?=\n*\*\*Gear\s+Recommendation|\n*\*\*Run\s+Strategy|\n*##\s*Gear|\n*##\s*Run|$)/i);
+    if (match && match[1].trim()) {
+      return match[1].trim();
+    }
     
-    // Extract only the Weather Analysis content (skip the header line)
-    const analysisLines = endIdx === -1 
-      ? lines.slice(startIdx + 1)
-      : lines.slice(startIdx + 1, endIdx);
+    // Strategy 3: Line-by-line extraction (handles variations in formatting)
+    const lines = text.split('\n');
+    const startIdx = lines.findIndex(l => 
+      /^##\s*Weather\s+Analysis/i.test(l) || 
+      /^\*\*Weather\s+Analysis\*\*/i.test(l)
+    );
     
-    return analysisLines.join('\n').trim();
+    if (startIdx !== -1) {
+      // Find where the next section starts
+      let endIdx = -1;
+      for (let i = startIdx + 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        // Stop at next major section
+        if (
+          /^##\s*Gear/i.test(line) ||
+          /^##\s*Run/i.test(line) ||
+          /^\*\*Gear\s+Recommendation/i.test(line) ||
+          /^\*\*Run\s+Strategy/i.test(line) ||
+          /^\*\*\*$/i.test(line) // Stop at horizontal rule
+        ) {
+          endIdx = i;
+          break;
+        }
+      }
+      
+      const contentLines = endIdx === -1 
+        ? lines.slice(startIdx + 1)
+        : lines.slice(startIdx + 1, endIdx);
+      
+      const content = contentLines.join('\n').trim();
+      if (content) {
+        return content;
+      }
+    }
+    
+    return 'Weather analysis not found in response.';
   };
 
   const weatherAnalysis = extractWeatherAnalysis(aiData);
@@ -63,17 +82,17 @@ const WeatherAnalysisButton = ({ aiData }) => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999]"
               onClick={() => setIsModalOpen(false)}
             />
             
             {/* Modal */}
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 pointer-events-none">
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="relative w-full max-w-md rounded-2xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-2xl"
+                className="relative w-full max-w-md rounded-2xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-2xl pointer-events-auto"
               >
                 {/* Close Button */}
                 <button
