@@ -32,7 +32,7 @@ function ensureGeminiInit() {
 
   try {
     genAI = new GoogleGenerativeAI(apiKey.trim());
-    model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-2.5-pro' });
+    model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-2.5-flash' });
     return true;
   } catch (e) {
     console.error('Failed to initialize Gemini SDK on server:', e);
