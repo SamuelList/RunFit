@@ -220,7 +220,8 @@ const Dashboard = () => {
                                     </motion.div>
                                 )}
 
-                                {!optionsDiffer ? (
+                                {/* Hide the 'Perfect alignment' message when the A.I. tab is active */}
+                                {!optionsDiffer && activeOption !== 'C' && (
                                     <motion.div
                                         className="mt-4 rounded-xl border border-emerald-200/60 dark:border-emerald-500/30 bg-emerald-50/60 dark:bg-emerald-500/10 px-4 py-3"
                                         initial={{ opacity: 0, y: 10 }}
@@ -236,7 +237,7 @@ const Dashboard = () => {
                                             <p className="text-sm font-semibold">Perfect alignment! Performance and comfort recommendations match today—this outfit optimizes both.</p>
                                         </div>
                                     </motion.div>
-                                ) : null}
+                                )}
                             </>
                         ) : (
                             <div className="space-y-2">
