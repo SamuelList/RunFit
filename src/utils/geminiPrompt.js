@@ -3,8 +3,7 @@ const MASTER_GEAR_LIST = [
   'Light Jacket', 'Insulated Jacket', 'Split Shorts', 'Running Shorts', 'Running Tights', 'Thermal Tights',
   'Cap', 'Cap for rain', 'Ear Band', 'Running Beanie', 'Balaclava', 'Light Gloves', 'Mid-weight Gloves',
   'Running Mittens', 'Glove Liner (under mittens)', 'Arm Sleeves', 'Neck Gaiter', 'Windbreaker',
-  'Packable Rain Shell', 'Sunglasses', 'Sunscreen', 'Water/Hydration', 'Energy Gels/Chews',
-  'Anti-Chafe Balm', 'Light Running Socks', 'Heavy Running Socks', 'Double Socks (layered)'
+  'Packable Rain Shell', 'Sunglasses', 'Sunscreen', 'Light Running Socks', 'Heavy Running Socks', 'Double Socks (layered)'
 ].join(', ');
 
 const analyzeWeatherTrend = (runType, hourlyForecast) => {

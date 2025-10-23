@@ -1,7 +1,7 @@
 import { Redis } from '@upstash/redis';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const COOLDOWN_MS = Number(process.env.COOLDOWN_MS || 90000);
+const COOLDOWN_MS = Number(process.env.COOLDOWN_MS || 120000);
 const redis = new Redis({ url: process.env.UPSTASH_REDIS_REST_URL, token: process.env.UPSTASH_REDIS_REST_TOKEN });
 
 let model = null;

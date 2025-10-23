@@ -10,7 +10,7 @@ const app = express();
 app.use(bodyParser.json());
 
 const PORT = process.env.PORT || 4000;
-const COOLDOWN_MS = parseInt(process.env.COOLDOWN_MS || '90000', 10);
+const COOLDOWN_MS = parseInt(process.env.COOLDOWN_MS || '120000', 10);
 const redis = new Redis(process.env.REDIS_URL || 'redis://127.0.0.1:6379');
 
 function userKeyForReq(req) {

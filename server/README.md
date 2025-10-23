@@ -6,7 +6,7 @@ Environment variables
 - GEMINI_API_KEY - your server-side Gemini API key (do NOT expose this to the client)
 - REDIS_URL - connection string for Redis (e.g. redis://localhost:6379)
 - PORT - port to listen on (default 4000)
-- COOLDOWN_MS - cooldown in milliseconds (default 90000)
+- COOLDOWN_MS - cooldown in milliseconds (default 120000)
 
 Run locally (requires Redis running locally):
 
