@@ -63,6 +63,65 @@ const analyzeWeatherTrend = (runType, hourlyForecast) => {
   };
 };
 
+const getDynamicPrinciples = (runType, weatherData, adjustedTemp, solarStatus) => {
+  const isDaytime = solarStatus === 'Above Horizon';
+  const isHot = adjustedTemp > 75;
+  const isCold = adjustedTemp < 45;
+  const isRainy = weatherData.precipProb > 30;
+  const isWindy = weatherData.wind > 12;
+  const isSunny = weatherData.cloud < 30 && isDaytime;
+
+  let gearPrinciple = '';
+  let strategyPrinciple = '';
+
+  if (runType === 'workout') {
+    gearPrinciple = 'The runner will generate significant body heat. Prioritize breathability and minimalism. Select gear to be slightly cool at the start, as the runner will heat up quickly. Avoid overdressing.';
+    
+    if (isHot) {
+      strategyPrinciple = 'Focus on managing heat stress, maintaining hydration, and adjusting pace for temperature conditions.';
+    } else if (isCold) {
+      strategyPrinciple = 'Focus on proper warm-up, maintaining intensity despite cold, and managing breathing in cool air.';
+    } else {
+      strategyPrinciple = 'Focus on maintaining target pace, proper pacing strategy, and managing effort throughout the workout.';
+    }
+
+  } else if (runType === 'easy') {
+    gearPrinciple = 'The runner will generate low-to-moderate body heat. Prioritize comfort and appropriate protection from current conditions. Select gear that balances comfort with weather protection.';
+    
+    if (isHot) {
+      strategyPrinciple = 'Focus on staying relaxed in the heat, managing effort to avoid overheating, and enjoying the surroundings.';
+    } else if (isCold) {
+      strategyPrinciple = 'Focus on maintaining a comfortable, relaxed effort and staying warm in the cool conditions.';
+    } else {
+      strategyPrinciple = 'Focus on maintaining a comfortable, relaxed pace and enjoying the run.';
+    }
+
+  } else { // longRun
+    gearPrinciple = 'The runner will generate steady heat over a long duration. Prioritize moisture management, versatility, and chafe-prevention. Gear must be comfortable for an extended period.';
+    
+    if (isHot) {
+      strategyPrinciple = 'Focus on hydration, electrolyte management, and adjusting pace for heat over the long duration.';
+    } else if (isCold) {
+      strategyPrinciple = 'Focus on consistent pacing, staying fueled, and managing the cool conditions throughout the run.';
+    } else {
+      strategyPrinciple = 'Focus on pacing, hydration, fueling strategy, and maintaining consistent effort.';
+    }
+  }
+
+  // Add condition-specific adjustments
+  if (isRainy) {
+    strategyPrinciple += ' Be prepared for wet conditions and adjust footing accordingly.';
+  }
+  if (isWindy) {
+    strategyPrinciple += ' Manage effort into headwinds and use tailwinds strategically.';
+  }
+  if (isSunny && isHot) {
+    strategyPrinciple += ' Seek shade when possible and prioritize sun protection.';
+  }
+
+  return { gearPrinciple, strategyPrinciple };
+};
+
 export function buildGeminiPrompt({ derived, wx, unit = 'F', gender = 'Male', runType = 'easy', tempSensitivity = 0 }) {
   if (!derived || !wx) return '';
 
@@ -85,19 +144,17 @@ export function buildGeminiPrompt({ derived, wx, unit = 'F', gender = 'Male', ru
 
   const { trendSummary } = analyzeWeatherTrend(runType, wx.hourlyForecast);
   const adjustedTemp = derived.tempDisplay + tempSensitivity * 5;
-  let gearPrinciple = '';
-  let strategyPrinciple = '';
-
-  if (runType === 'workout') {
-    gearPrinciple = 'The runner will generate significant body heat. Prioritize breathability and minimalism. Select gear to be slightly cool at the start, as the runner will heat up quickly. Avoid overdressing.';
-    strategyPrinciple = 'Focus on managing the high intensity, visibility in the dark, and breathing in the cool air.';
-  } else if (runType === 'easy') {
-    gearPrinciple = 'The runner will generate low-to-moderate body heat. Prioritize warmth and comfort. Select gear that protects from the wind chill, as the runner will not be generating as much heat.';
-    strategyPrinciple = 'Focus on maintaining a comfortable, relaxed effort and enjoying the run despite the dark and cool conditions.';
-  } else { // longRun
-    gearPrinciple = 'The runner will generate steady heat over a long duration. Prioritize moisture management, versatility, and chafe-prevention. Gear must be comfortable for an extended period.';
-    strategyPrinciple = 'Focus on pacing, hydration, and potential fueling. Advise on how to manage the cool conditions for the entire duration.';
-  }
+  
+  const { gearPrinciple, strategyPrinciple } = getDynamicPrinciples(
+    runType, 
+    {
+      precipProb: wx.precipProb,
+      wind: wx.wind,
+      cloud: wx.cloud
+    }, 
+    adjustedTemp, 
+    solarStatus
+  );
 
   return `
 Improved Prompt
