@@ -22,12 +22,13 @@ export const initializeGemini = () => {
     // Model selection - change this string to try different Gemini variants.
     // Examples (swap the model string to experiment):
     //  - 'gemini-2.5-pro'   -> High-quality, best performance (default)
-    //  - 'gemini-2.5-flash' -> Standard 2.5 series model (balanced cost/quality)
+    //  - 'gemini-2.5-flash' -> Standard 2.5 series model (balanced cost/quality, used as fallback)
     //  - 'gemini-2.5-flash-lite' -> Smaller, lower-cost/faster variant
     //  - 'gemini-2.0-flash-exp' -> Older flash/experimental variant (used previously)
     // Note: availability and exact identifiers may vary by account/region. If a model
     // identifier fails, try another or check your Google AI account for supported names.
-    model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    // Use the high-quality 'pro' model as the primary; fallback to 'flash' is attempted on access errors.
+    model = genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
     
     return true;
   } catch (error) {
