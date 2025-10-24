@@ -10,49 +10,57 @@ const WeatherAnalysisButton = ({ aiData }) => {
   const extractWeatherAnalysis = (text) => {
     if (!text) return 'No weather analysis available.';
     
-    // Multi-strategy extraction with priority order
+    console.log('=== RAW AI RESPONSE ===');
+    console.log(text);
+    console.log('=== END RAW AI RESPONSE ===');
+    
+    // Strategy 1: Try to find ANY text between the start and the next major section
+    // This is more forgiving than looking for exact header formats
     const lines = text.split('\n');
     let startIdx = -1;
     let endIdx = -1;
     
-    // Find start: look for Weather Analysis header (any format)
+    // Find start - look for any line containing "weather" and "analysis" (case insensitive)
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (
-        /^##\s*Weather\s+Analysis/i.test(line) ||
-        /^\*\*Weather\s+Analysis\*\*/i.test(line) ||
-        /^Weather\s+Analysis:/i.test(line)
-      ) {
+      const line = lines[i].toLowerCase();
+      if (line.includes('weather') && line.includes('analysis')) {
         startIdx = i;
+        console.log('Found Weather Analysis header at line', i, ':', lines[i]);
         break;
       }
     }
     
     if (startIdx === -1) {
+      console.log('No Weather Analysis header found');
       return 'Weather analysis section not found in AI response.';
     }
     
-    // Find end: look for next major section header
+    // Find end - look for next section (Gear, Run, or horizontal rule)
     for (let i = startIdx + 1; i < lines.length; i++) {
-      const line = lines[i].trim();
+      const line = lines[i].trim().toLowerCase();
       if (
-        /^##\s*Gear/i.test(line) ||
-        /^##\s*Run/i.test(line) ||
-        /^\*\*Gear\s+Recommendation/i.test(line) ||
-        /^\*\*Run\s+Strategy/i.test(line) ||
-        /^\*\*\*+\s*$/i.test(line) // horizontal rule
+        line.startsWith('##') ||
+        line.startsWith('**gear') ||
+        line.startsWith('**run') ||
+        line.startsWith('gear recommendation') ||
+        line.startsWith('run strategy') ||
+        /^\*\*\*+\s*$/.test(line) // horizontal rule
       ) {
         endIdx = i;
+        console.log('Found next section at line', i, ':', lines[i]);
         break;
       }
     }
     
-    // Extract content between start and end
+    // Extract content
     const contentLines = endIdx === -1 
       ? lines.slice(startIdx + 1)
       : lines.slice(startIdx + 1, endIdx);
     
     const content = contentLines.join('\n').trim();
+    console.log('Extracted content length:', content.length);
+    console.log('Extracted content preview:', content.substring(0, 200));
+    
     return content || 'Weather analysis section is empty.';
   };
 
