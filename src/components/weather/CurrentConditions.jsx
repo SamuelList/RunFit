@@ -219,10 +219,10 @@ const CurrentConditions = ({
             </div>
 
             {/* Preferences Section */}
-<div className="p-5 bg-gradient-to-br from-gray-50/50 to-white dark:from-slate-900/50 dark:to-slate-900 w-full min-w-[260px] sm:min-w-[320px]">
+<div className="p-2 bg-gradient-to-br from-gray-50/50 to-white dark:from-slate-900/50 dark:to-slate-900 w-full min-w-[260px] sm:min-w-[320px]">
   <div className="space-y-3">
     <div className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 p-3">
-      <div className="flex flex-col items-center justify-center space-y-4">
+      <div className="flex flex-col items-center justify-center ">
         {/* Run Type - Centered */}
         <div className="text-center">
           <div className="mb-4 text-xs font-medium uppercase tracking-wide text-gray-600 dark:text-slate-400">
