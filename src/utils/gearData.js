@@ -119,7 +119,7 @@ export const GEAR_INFO = {
     whenToWear: "Very cold weather (below 25°F) or extreme wind chill.",
     tips: "May feel too warm during hard efforts. Best for easy runs in frigid temps.",
     tempRange: "Below 25°F",
-    image: null, // Path to image file (e.g., '/images/gear/insulated_jacket.png')
+    image: '/images/gear/insulated_jacket.png'
   },
   
   // Bottoms
@@ -204,7 +204,7 @@ export const GEAR_INFO = {
     whenToWear: "Very cold weather (below 10°F) or extreme wind chill. Essential for preventing frostbite.",
     tips: "Look for breathable mesh mouth panel to reduce moisture and fogging. Can layer under beanie for extra warmth at 0°F.",
     tempRange: "Below 10°F or severe wind chill",
-    image: null, // Path to image file (e.g., '/images/gear/balaclava.png')
+    image: '/images/gear/balaclava.png'
   },
   light_gloves: {
     name: "Light Gloves",
@@ -231,7 +231,7 @@ export const GEAR_INFO = {
     whenToWear: "Very cold weather (below 25°F) or severe wind chill.",
     tips: "Warmer than gloves but less dexterity. Consider convertible mitten-glove hybrids.",
     tempRange: "Below 25°F",
-    image: null, // Path to image file (e.g., '/images/gear/mittens.png')
+    image: '/images/gear/mittens.png'
   },
   mittens_liner: {
     name: "Glove Liner (under mittens)",
@@ -287,7 +287,7 @@ export const GEAR_INFO = {
     whenToWear: "Rain probability 40%+ or during precipitation.",
     tips: "Breathable fabric prevents overheating. Bright colors increase visibility in storms.",
     tempRange: "All temperatures in rain",
-    image: null, // Path to image file (e.g., '/images/gear/rain_shell.png')
+    image: '/images/gear/rain_shell.png'
   },
   sunglasses: {
     name: "Sunglasses",
@@ -296,7 +296,7 @@ export const GEAR_INFO = {
     whenToWear: "High UV index (7+) or very sunny conditions.",
     tips: "Polarized lenses reduce road glare. Secure fit prevents bouncing while running.",
     tempRange: "All temperatures",
-    image: null, // Path to image file (e.g., '/images/gear/sunglasses.png')
+    image: '/images/gear/sunglasses.png'
   },
   sunscreen: {
     name: "Sunscreen",
@@ -305,7 +305,7 @@ export const GEAR_INFO = {
     whenToWear: "UV index 6+ or any long run over 1 hour in daylight.",
     tips: "Sport formula resists sweat. Reapply every 80 minutes on long runs. SPF 30+ minimum.",
     tempRange: "All temperatures",
-    image: null, // Path to image file (e.g., '/images/gear/sunscreen.png')
+    image: '/images/gear/sunscreen.png'
   },
   
   // Nutrition & Care ;)
@@ -354,7 +354,7 @@ export const GEAR_INFO = {
     whenToWear: "Cold weather (below 40°F) or when extra cushioning is needed.",
     tips: "Merino wool regulates temperature. Extra padding reduces impact on long runs.",
     tempRange: "Below 40°F",
-    image: null, // Path to image file (e.g., '/images/gear/heavy_socks.png')
+    image: '/images/gear/heavy_socks.png'
   },
   double_socks: {
     name: "Double Socks (layered)",

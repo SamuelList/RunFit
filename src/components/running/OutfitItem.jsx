@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { Flame, TrendingUp, Hand, UserRound, Sparkles } from "lucide-react";
 import { GEAR_INFO, GEAR_ICONS } from "../../utils/gearData";
@@ -21,6 +21,7 @@ import { GEAR_INFO, GEAR_ICONS } from "../../utils/gearData";
  * @param {Function} props.onClick - Click handler for item selection
  */
 const OutfitItem = ({ item, listItemVariants, onClick }) => {
+  const [imgLoaded, setImgLoaded] = useState(false);
   const gearInfo = GEAR_INFO[item.key];
   const Icon = GEAR_ICONS[item.key] || UserRound;
   const hasBadges = item.coldHands || item.workout || item.longRun || item.isAiSuggested;
@@ -35,11 +36,21 @@ const OutfitItem = ({ item, listItemVariants, onClick }) => {
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           {gearInfo?.image ? (
-            <img
-              src={gearInfo.image}
-              alt={item.label}
-              className="h-10 w-10 rounded-lg object-cover"
-            />
+            <div className="relative h-10 w-10 rounded-lg overflow-hidden bg-gray-100 dark:bg-slate-700">
+              <img
+                src={gearInfo.image}
+                alt={item.label}
+                width={40}
+                height={40}
+                loading="lazy"
+                decoding="async"
+                fetchPriority="low"
+                onLoad={() => setImgLoaded(true)}
+                className={`h-10 w-10 rounded-lg object-cover transition-opacity duration-200 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
+              />
+              {/* lightweight placeholder while image loads */}
+              <div className={`${imgLoaded ? 'opacity-0' : 'opacity-100'} absolute inset-0 rounded-lg bg-gray-100 dark:bg-slate-700 transition-opacity duration-200`} aria-hidden="true" />
+            </div>
           ) : (
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 dark:bg-slate-700">
               <Icon className="h-5 w-5 text-gray-600 dark:text-slate-300" />
