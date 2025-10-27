@@ -41,10 +41,10 @@ const analyzeWeatherTrend = (runType, hourlyForecast) => {
   const currentTemp = current.temperature;
   const tempChange = future.temp - currentTemp;
   const precipStarts = future.precipProb > 50 && current.precipProb < 30;
-  const windIncreases = future.wind > current.wind + 8;
+  const windIncreases = future.wind > current.wind + 4;
 
   const changes = [];
-  if (Math.abs(tempChange) > 8) {
+  if (Math.abs(tempChange) > 4) {
     changes.push(`temperature will ${tempChange > 0 ? 'rise' : 'fall'} by ~${Math.round(Math.abs(tempChange))}°`);
   }
   if (precipStarts) {
@@ -86,7 +86,11 @@ const getDynamicPrinciples = (runType, weatherData, adjustedTemp, solarStatus) =
     }
 
   } else if (runType === 'easy') {
-    gearPrinciple = 'The runner will generate low-to-moderate body heat. Prioritize comfort and appropriate protection from current conditions. Select gear that balances comfort with weather protection.';
+    // --- MODIFICATION START ---
+    // The previous principle was too vague. This new one explicitly tells the AI to
+    // avoid overdressing, just like the 'workout' principle does.
+    gearPrinciple = 'The runner will generate low-to-moderate body heat, but this is still significant. Prioritize comfort and **avoid overdressing**. Select gear to be **slightly cool for the first 5-10 minutes**, as the runner will warm up. It is better to be slightly cool than too warm.';
+    // --- MODIFICATION END ---
     
     if (isHot) {
       strategyPrinciple = 'Focus on staying relaxed in the heat, managing effort to avoid overheating, and enjoying the surroundings.';
