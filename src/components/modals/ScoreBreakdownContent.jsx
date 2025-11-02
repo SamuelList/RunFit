@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Thermometer, Wind, Droplets } from 'lucide-react';
+import { Thermometer, Wind, Droplets, Copy, Check } from 'lucide-react';
+import { buildHourPrompt } from '../../utils/geminiPrompt';
 
 /**
  * ScoreBreakdownContent Component
@@ -21,8 +22,15 @@ export const ScoreBreakdownContent = ({
   breakdown, 
   weatherSummary,
   score,
-  variants = {}
+  variants = {},
+  hourData = null,
+  unit = 'F',
+  gender = 'Male',
+  runType = 'easy',
+  tempSensitivity = 0,
+  currentLocation = ''
 }) => {
+  const [isCopied, setIsCopied] = useState(false);
   const { staggerContainer = {}, listItemVariants = {} } = variants;
 
   const impactColors = {
@@ -137,6 +145,44 @@ export const ScoreBreakdownContent = ({
           </motion.div>
         )}
       </div>
+
+      {/* Copy Prompt Button - Only show when hourData is provided */}
+      {hourData && (
+        <motion.button
+          onClick={() => {
+            const promptText = buildHourPrompt({
+              hourData,
+              unit,
+              gender,
+              runType,
+              tempSensitivity,
+              currentLocation
+            });
+            navigator.clipboard.writeText(promptText).then(() => {
+              setIsCopied(true);
+              setTimeout(() => setIsCopied(false), 2000);
+            });
+          }}
+          className="w-full rounded-xl border-2 border-sky-300 dark:border-sky-600 bg-gradient-to-br from-sky-50 to-blue-50 dark:from-sky-950/40 dark:to-blue-950/40 px-6 py-3 font-semibold text-sky-900 dark:text-sky-100 transition-all hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
+          variants={listItemVariants}
+          whileHover={{ y: -2 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          <div className="flex items-center justify-center gap-2">
+            {isCopied ? (
+              <>
+                <Check className="h-5 w-5 text-green-600 dark:text-green-400" />
+                <span>Prompt Copied!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="h-5 w-5" />
+                <span>Copy Prompt for AI</span>
+              </>
+            )}
+          </div>
+        </motion.button>
+      )}
     </motion.div>
   );
 };

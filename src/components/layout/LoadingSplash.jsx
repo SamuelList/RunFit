@@ -14,6 +14,12 @@ import { Activity } from 'lucide-react';
 export function LoadingSplash({ isLoading, progress = 0, stage = 'Initializing...' }) {
   if (!isLoading) return null;
 
+  // Determine stage category for visual feedback
+  const isLocationStage = stage.toLowerCase().includes('location') || stage.toLowerCase().includes('gps') || stage.toLowerCase().includes('ip');
+  const isWeatherStage = stage.toLowerCase().includes('weather') || stage.toLowerCase().includes('forecast') || stage.toLowerCase().includes('connecting');
+  const isProcessingStage = stage.toLowerCase().includes('processing') || stage.toLowerCase().includes('calculating') || stage.toLowerCase().includes('building');
+  const isCompleteStage = stage.toLowerCase().includes('ready') || stage.toLowerCase().includes('complete') || progress >= 100;
+
   return (
     <motion.div
       className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-700"
@@ -55,10 +61,21 @@ export function LoadingSplash({ isLoading, progress = 0, stage = 'Initializing..
         <motion.div
           className="flex h-20 w-20 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm shadow-2xl"
           initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.5, ease: 'easeOut' }}
+          animate={{ 
+            scale: isCompleteStage ? 1.1 : 1, 
+            opacity: 1,
+            rotate: isProcessingStage ? [0, 360] : 0
+          }}
+          transition={{ 
+            duration: 0.5, 
+            ease: 'easeOut',
+            rotate: { duration: 2, repeat: isProcessingStage ? Infinity : 0, ease: 'linear' }
+          }}
         >
-          <Activity className="h-10 w-10 text-white" strokeWidth={2.5} />
+          <Activity 
+            className="h-10 w-10 text-white" 
+            strokeWidth={2.5}
+          />
         </motion.div>
 
         {/* App Name */}
@@ -85,11 +102,25 @@ export function LoadingSplash({ isLoading, progress = 0, stage = 'Initializing..
         >
           <div className="relative h-2 overflow-hidden rounded-full bg-white/20 backdrop-blur-sm">
             <motion.div
-              className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-white to-sky-100"
+              className="absolute inset-y-0 left-0 rounded-full"
+              style={{
+                background: isCompleteStage 
+                  ? 'linear-gradient(to right, #10b981, #34d399)' 
+                  : 'linear-gradient(to right, #ffffff, #e0f2fe)'
+              }}
               initial={{ width: '0%' }}
-              animate={{ width: `${progress}%` }}
-              transition={{ duration: 0.3, ease: 'easeOut' }}
+              animate={{ width: `${Math.min(progress, 100)}%` }}
+              transition={{ duration: 0.4, ease: 'easeOut' }}
             />
+            {/* Animated shimmer effect */}
+            {!isCompleteStage && progress < 100 && (
+              <motion.div
+                className="absolute inset-y-0 left-0 w-full bg-gradient-to-r from-transparent via-white/30 to-transparent"
+                animate={{ x: ['0%', '100%'] }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+                style={{ width: '50%' }}
+              />
+            )}
           </div>
           
           {/* Progress Text */}
@@ -103,16 +134,37 @@ export function LoadingSplash({ isLoading, progress = 0, stage = 'Initializing..
           >
             {stage}
           </motion.p>
+          
+          {/* Stage-specific details */}
+          <motion.p
+            className="mt-1 text-center text-xs text-white/70"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+          >
+            {isLocationStage && 'Determining your position...'}
+            {isWeatherStage && 'Loading current conditions & forecast...'}
+            {isProcessingStage && 'Computing run conditions & gear...'}
+            {isCompleteStage && 'All systems ready!'}
+            {!isLocationStage && !isWeatherStage && !isProcessingStage && !isCompleteStage && 'Preparing your dashboard...'}
+          </motion.p>
         </motion.div>
 
         {/* Percentage */}
         <motion.div
           className="text-2xl font-bold text-white/80"
           initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.6 }}
+          animate={{ 
+            opacity: 1,
+            scale: isCompleteStage ? [1, 1.2, 1] : 1
+          }}
+          transition={{ 
+            duration: 0.5, 
+            delay: 0.6,
+            scale: { duration: 0.5 }
+          }}
         >
-          {Math.round(progress)}%
+          {Math.round(Math.min(progress, 100))}%
         </motion.div>
       </div>
     </motion.div>

@@ -40,26 +40,26 @@ const analyzeWeatherTrend = (runType, hourlyForecast) => {
 
   const currentTemp = current.temperature;
   const tempChange = future.temp - currentTemp;
-  const precipStarts = future.precipProb > 50 && current.precipProb < 30;
-  const windIncreases = future.wind > current.wind + 4;
+  const precipStarts = future.precipProb > 60 && current.precipProb < 30;
+  const windIncreases = future.wind > current.wind + 6;
 
   const changes = [];
-  if (Math.abs(tempChange) > 4) {
-    changes.push(`temperature will ${tempChange > 0 ? 'rise' : 'fall'} by ~${Math.round(Math.abs(tempChange))}°`);
+  if (Math.abs(tempChange) > 5) {
+    changes.push(`${tempChange > 0 ? '+' : ''}${Math.round(tempChange)}°`);
   }
   if (precipStarts) {
-    changes.push(`rain is likely to start (chance increases to ${Math.round(future.precipProb)}%)`);
+    changes.push(`rain likely`);
   }
   if (windIncreases) {
-    changes.push(`wind will pick up to ~${Math.round(future.wind)} mph`);
+    changes.push(`wind →${Math.round(future.wind)}mph`);
   }
 
   if (changes.length === 0) {
-    return { trendSummary: `Conditions are expected to be stable ${trendDescription}.` };
+    return { trendSummary: `Stable conditions ${trendDescription}.` };
   }
 
   return {
-    trendSummary: `Weather will change ${trendDescription}: ${changes.join(', ')}.`
+    trendSummary: `${changes.join(', ')} ${trendDescription}`
   };
 };
 
@@ -126,6 +126,116 @@ const getDynamicPrinciples = (runType, weatherData, adjustedTemp, solarStatus) =
   return { gearPrinciple, strategyPrinciple };
 };
 
+export function buildHourPrompt({ hourData, unit = 'F', gender = 'Male', runType = 'easy', tempSensitivity = 0, currentLocation = '' }) {
+  if (!hourData) return '';
+
+  const getDayWithSuffix = (d) => {
+    if (d > 3 && d < 21) return `${d}th`;
+    switch (d % 10) {
+      case 1: return `${d}st`;
+      case 2: return `${d}nd`;
+      case 3: return `${d}rd`;
+      default: return `${d}th`;
+    }
+  };
+
+  // Parse the hour time
+  const hourTime = new Date(hourData.time);
+  const month = hourTime.toLocaleDateString('en-US', { month: 'long' });
+  const day = getDayWithSuffix(hourTime.getDate());
+  const time = hourTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(' ', '');
+  const timestamp = `${month} ${day}, ${time}`;
+
+  // Get weather data from hourData
+  const tempF = hourData.weatherData?.tempF || 0;
+  const apparentF = hourData.weatherData?.apparentF || tempF;
+  const humidity = hourData.weatherData?.humidity || 0;
+  const windMph = hourData.weatherData?.windMph || 0;
+  const precipProb = hourData.weatherData?.precipProb || 0;
+  const precipIn = hourData.weatherData?.precipIn || 0;
+  const uvIndex = hourData.weatherData?.uvIndex || 0;
+
+  // Calculate derived values
+  const adjustedTemp = unit === 'F' ? tempF + tempSensitivity * 5 : ((tempF - 32) * 5/9) + tempSensitivity * 5;
+  const adjustedApparent = unit === 'F' ? apparentF + tempSensitivity * 5 : ((apparentF - 32) * 5/9) + tempSensitivity * 5;
+  
+  // Calculate dew point approximation using Magnus formula
+  const a = 17.27;
+  const b = 237.7;
+  const tempC = (tempF - 32) * 5/9;
+  const alpha = ((a * tempC) / (b + tempC)) + Math.log(humidity / 100);
+  const dewPointC = (b * alpha) / (a - alpha);
+  const dewPointF = (dewPointC * 9/5) + 32;
+  const dewPointDisplay = unit === 'F' ? dewPointF : dewPointC;
+
+  // Estimate solar elevation based on hour (simplified)
+  const hour = hourTime.getHours();
+  const isMorning = hour >= 6 && hour < 12;
+  const isAfternoon = hour >= 12 && hour < 18;
+  const isDaytime = hour >= 6 && hour < 20;
+  const solarElevation = isDaytime ? (isMorning ? (hour - 6) * 10 : isAfternoon ? 60 - ((hour - 12) * 10) : 5) : -5;
+  const solarStatus = solarElevation > 0 ? 'Above Horizon' : 'Below Horizon';
+  
+  // Estimate cloud cover and solar radiation from available data
+  const cloudCover = precipProb > 60 ? 80 : precipProb > 30 ? 50 : 20;
+  const baseSolarRadiation = Math.max(0, Math.sin((solarElevation * Math.PI) / 180) * 1000);
+  const solarRadiation = baseSolarRadiation * ((100 - cloudCover) / 100);
+
+  const { gearPrinciple, strategyPrinciple } = getDynamicPrinciples(
+    runType,
+    { precipProb, wind: windMph, cloud: cloudCover },
+    adjustedTemp,
+    solarStatus
+  );
+
+  return `
+
+Role and Goal: Act as an expert running coach. Your task is to provide a gear recommendation and run strategy based only on the data I provide.
+Core Rules:
+1. Use only the data provided in the "Input Data" section.
+2. Do not use any external tools, web searches, or real-time data.
+3. Your response must be based on reasoning and inference from the provided data alone.
+4. Adhere strictly to the "Required Output Format." 
+
+1. Input Data:
+* Timestamp: ${timestamp}${currentLocation ? `\n* Location: ${currentLocation}` : ''}
+* Weather (Forecast Hour):
+    * Air Temp: ${adjustedTemp.toFixed(1)}°${unit}
+    * Feels Like: ${adjustedApparent.toFixed(1)}°${unit}
+    * Dew Point: ${dewPointDisplay.toFixed(1)}°${unit}
+    * Humidity: ${humidity.toFixed(0)}%
+    * Wind: ${windMph.toFixed(1)} mph
+    * Solar Angle: ${solarStatus} (${solarElevation.toFixed(1)}°)
+    * Solar Radiation: ${solarRadiation.toFixed(0)} W/m² (estimated)
+    * Cloud Cover: ${cloudCover.toFixed(0)}% (estimated)
+    * Precipitation %: ${precipProb.toFixed(0)}%
+    * Precipitation amount (in): ${precipIn.toFixed(2)}in
+    * UV: ${uvIndex.toFixed(1)}
+* Runner Profile:
+    * Sex: ${gender || 'Male'}
+    * Effort: ${runType === 'easy' ? 'Easy Run' : runType === 'workout' ? 'Hard Workout' : 'Long Run'}
+* Master Gear List (Choose only from these items):
+    * ${MASTER_GEAR_LIST}
+
+2. Required Output Format:
+You must structure your response in these three exact sections:
+
+Weather Analysis
+First, analyze the "Feels Like" effect (do not perform a mathematical calculation). Synthesize all relevant weather data to estimate the perceived temperature. Explain your reasoning for this perceived feel. Thoroughly analyze what this means for the run. Acknowledge the fact that when the sun is out and shining down on you, it affects a lot and vice versa.
+
+Gear Recommendation (${runType === 'easy' ? 'Easy Run' : runType === 'workout' ? 'Hard Workout' : 'Long Run'})
+Based on your Weather Analysis and the Adaptive Logic for the given Effort, create a simple, clean list of items selected only from the Master Gear List.
+* Guiding Principle: ${gearPrinciple}
+* Strategy Principle: ${strategyPrinciple}
+* This list must be ordered from head to toe.
+* Do not include any extra text, explanations, or bullet points in this section—just the list of item names.
+
+Run Strategy
+In 30-50 words, provide a helpful run strategy tip for an experienced runner based on these specific weather conditions. Incorporate advice on how to manage the "${runType === 'easy' ? 'Easy Run' : runType === 'workout' ? 'Hard Workout' : 'Long Run'}" effort in these conditions at this time. Provide guidance on why the clothing you picked worked and how to use them effectively.
+
+`.trim();
+}
+
 export function buildGeminiPrompt({ derived, wx, unit = 'F', gender = 'Male', runType = 'easy', tempSensitivity = 0 }) {
   if (!derived || !wx) return '';
 
@@ -161,7 +271,6 @@ export function buildGeminiPrompt({ derived, wx, unit = 'F', gender = 'Male', ru
   );
 
   return `
-Improved Prompt
 
 Role and Goal: Act as an expert running coach. Your task is to provide a gear recommendation and run strategy based only on the data I provide.
 Core Rules:
@@ -174,6 +283,7 @@ Core Rules:
 * Timestamp: ${timestamp}
 * Weather (Current):
     * Air Temp: ${adjustedTemp.toFixed(1)}°${unit}
+    * RealFeel: ${derived.utci?.toFixed(1)}°${unit}
     * Dew Point: ${derived.dewPointDisplay?.toFixed(1)}°${unit}
     * Humidity: ${wx.humidity?.toFixed(0)}%
     * Wind: ${wx.wind?.toFixed(1)} mph
@@ -195,7 +305,7 @@ Core Rules:
 You must structure your response in these three exact sections:
 
 Weather Analysis
-First, analyze the "Feels Like" effect (do not perform a mathematical calculation). Synthesize all relevant weather data to estimate the perceived temperature. Explain your reasoning for this perceived feel. Thoroughly analyze what this means for the run. Finally, comment on the weather trend and how its stability simplifies gear choice.
+First, analyze the "Feels Like" effect (do not perform a mathematical calculation). Synthesize all relevant weather data to estimate the perceived temperature. Explain your reasoning for this perceived feel. Thoroughly analyze what this means for the run. Finally, comment on the weather trend and how its stability simplifies gear choice. Acknowledge the fact that when the sun is out and shining down on you, it affects a lot and vice versa.
 
 Gear Recommendation (${runType === 'easy' ? 'Easy Run' : runType === 'workout' ? 'Hard Workout' : 'Long Run'})
 Based on your Weather Analysis and the Adaptive Logic for the given Effort, create a simple, clean list of items selected only from the Master Gear List.
@@ -205,7 +315,7 @@ Based on your Weather Analysis and the Adaptive Logic for the given Effort, crea
 * Do not include any extra text, explanations, or bullet points in this section—just the list of item names.
 
 Run Strategy
-In 30-50 words, provide a helpful run strategy tip for an experienced runner based on these specific weather conditions. Incorporate advice on how to manage the "${runType === 'easy' ? 'Easy Run' : runType === 'workout' ? 'Hard Workout' : 'Long Run'}" effort in these conditions at this time.
+In 30-50 words, provide a helpful run strategy tip for an experienced runner based on these specific weather conditions. Incorporate advice on how to manage the "${runType === 'easy' ? 'Easy Run' : runType === 'workout' ? 'Hard Workout' : 'Long Run'}" effort in these conditions at this time. Provide guidance on why the clothing you picked worked and how to use them effectively.
 
 `.trim();
 }

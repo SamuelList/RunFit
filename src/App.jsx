@@ -663,6 +663,8 @@ export default function App() {
   const [gender, setGender] = useState(initialSettings.gender);
   const [loading, setLoading] = useState(true); // Start with loading true for initial load
   const [initializing, setInitializing] = useState(true); // Keep splash until first full load completes
+  const [loadingStage, setLoadingStage] = useState('Initializing...');
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [error, setError] = useState("");
   const [wx, setWx] = useState(null);
   const [customTempEnabled, setCustomTempEnabled] = useState(initialSettings.customTempEnabled);
@@ -736,11 +738,15 @@ export default function App() {
     
     setLoading(true);
     setError("");
+    setLoadingStage('Refreshing location...');
+    setLoadingProgress(10);
     
     try {
       // Check if geolocation is available
       if (!("geolocation" in navigator) || !window.isSecureContext) {
       // Fallback: just refresh current place
+      setLoadingStage('Refreshing weather...');
+      setLoadingProgress(25);
       await fetchWeather(place, unit);
       setShowRefreshToast(true);
       setTimeout(() => setShowRefreshToast(false), 2000);
@@ -749,10 +755,15 @@ export default function App() {
     }
 
     // Get current position
+    setLoadingStage('Acquiring GPS location...');
+    setLoadingProgress(15);
     const pos = await new Promise((resolve, reject) => 
       navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 })
     );
     const { latitude, longitude } = pos.coords;
+    
+    setLoadingStage('GPS location updated!');
+    setLoadingProgress(25);
     
     // Set temporary location and fetch weather immediately
     const p = { name: "Current location", lat: latitude, lon: longitude, source: 'gps' };
@@ -767,6 +778,8 @@ export default function App() {
     setTimeout(() => setShowRefreshToast(false), 2000);
   } catch (err) {
     console.error("Geolocation error:", err);
+    setLoadingStage('GPS unavailable, refreshing current location...');
+    setLoadingProgress(20);
     // Fallback: just refresh current place
     await fetchWeather(place, unit);
     setShowRefreshToast(true);
@@ -973,10 +986,15 @@ export default function App() {
 
   const fetchWeather = async (p = place, u = unit) => {
     setLoading(true); setError("");
+    setLoadingStage('Fetching weather data...');
+    setLoadingProgress(30);
     try {
   const tempUnit = u === "F" ? "fahrenheit" : "celsius";
   const primaryUrl = `https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lon}&current_weather=true&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,precipitation,cloud_cover,uv_index,wind_speed_10m,surface_pressure,shortwave_radiation&daily=sunrise,sunset&temperature_unit=${tempUnit}&windspeed_unit=mph&precipitation_unit=inch&timezone=auto&forecast_days=3`;
 
+      setLoadingStage('Connecting to weather services...');
+      setLoadingProgress(40);
+      
       const [primaryResult, secondaryResult] = await Promise.allSettled([
         fetch(primaryUrl).then((res) => {
           if (!res.ok) throw new Error("Weather fetch failed");
@@ -986,6 +1004,9 @@ export default function App() {
       ]);
 
       if (primaryResult.status !== 'fulfilled') throw primaryResult.reason;
+
+      setLoadingStage('Processing weather data...');
+      setLoadingProgress(60);
 
       const data = primaryResult.value;
       const idx = getCurrentHourIndex(data?.hourly?.time || []);
@@ -1014,6 +1035,9 @@ export default function App() {
       const sunsetTimes = sunEvents.sunset.length ? toIsoList(sunEvents.sunset) : fallbackSunset;
       const dawnTimes = toIsoList(sunEvents.civilDawn);
       const duskTimes = toIsoList(sunEvents.civilDusk);
+
+      setLoadingStage('Building forecast...');
+      setLoadingProgress(70);
 
       const times = data?.hourly?.time || [];
       const hourlyForecast = [];
@@ -1077,9 +1101,16 @@ export default function App() {
 
       combined.hourlyForecast = hourlyForecast;
   const { provider: _ignoredProvider, ...finalWx } = combined;
+  
+  setLoadingStage('Calculating conditions...');
+  setLoadingProgress(85);
+  
   setWx({ ...finalWx, sources });
   setDebugActive(false);
   setLastUpdated(Date.now());
+  
+  setLoadingStage('Finalizing...');
+  setLoadingProgress(95);
     } catch (e) {
       console.error(e);
       setError("Couldn't load weather. Try again.");
@@ -1114,6 +1145,8 @@ export default function App() {
 
   const ipLocationFallback = async (returnPlace = false) => {
     try {
+      setLoadingStage('Fetching IP-based location...');
+      setLoadingProgress(15);
       const res = await fetch("https://ipapi.co/json/");
       const d = await res.json();
       if (!d?.latitude) throw new Error("IP API failed");
@@ -1121,6 +1154,7 @@ export default function App() {
       const p = { name: nameGuess, lat: d.latitude, lon: d.longitude, source: 'ip' };
       setPlace(p); setQuery(p.name);
       setError("Using approximate location. For GPS, enable location permissions.");
+      setLoadingProgress(25);
       if (returnPlace) return p; // Return the place object if requested
       else await fetchWeather(p, unit);
     } catch (e) {
@@ -1132,13 +1166,22 @@ export default function App() {
 
   const tryGeolocate = async (initialLoad = false) => {
     setError("");
+    setLoadingStage('Getting your location...');
+    setLoadingProgress(10);
     let fetchedPlace = null;
     try {
       if (!("geolocation" in navigator) || !window.isSecureContext) { 
+        setLoadingStage('Using IP-based location...');
+        setLoadingProgress(20);
         fetchedPlace = await ipLocationFallback(true); // true to return place
       } else {
+        setLoadingStage('Requesting GPS location...');
+        setLoadingProgress(15);
         const pos = await new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 }));
         const { latitude, longitude } = pos.coords;
+        
+        setLoadingStage('Location acquired!');
+        setLoadingProgress(25);
         
         const p = { name: "Current location", lat: latitude, lon: longitude, source: 'gps' };
         setPlace(p); 
@@ -1150,6 +1193,8 @@ export default function App() {
       }
     } catch (err) { 
       console.warn("Geolocation attempt failed, falling back to IP or default.", err);
+      setLoadingStage('Falling back to IP location...');
+      setLoadingProgress(20);
       fetchedPlace = await ipLocationFallback(true);
     } finally {
       if (fetchedPlace) {
@@ -1159,6 +1204,10 @@ export default function App() {
         await fetchWeather(DEFAULT_PLACE, unit);
       }
       if (initialLoad) {
+        setLoadingStage('Ready!');
+        setLoadingProgress(100);
+        // Small delay to show 100% before hiding splash
+        await new Promise(resolve => setTimeout(resolve, 300));
         setInitializing(false);
       }
       setLoading(false);
@@ -1169,6 +1218,8 @@ export default function App() {
     (async () => {
       setInitializing(true);
       setLoading(true);
+      setLoadingStage('Starting up...');
+      setLoadingProgress(5);
       try {
         await tryGeolocate(true);
       } catch (e) {
@@ -1188,14 +1239,20 @@ export default function App() {
 
   const searchCity = async () => {
     setLoading(true); setError("");
+    setLoadingStage('Searching for location...');
+    setLoadingProgress(20);
     try {
       const params = new URLSearchParams({ q: query, format: "jsonv2", limit: "1", addressdetails: "1" });
+      setLoadingProgress(30);
       const res = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
         headers: nominatimHeaders(),
       });
       const results = await res.json();
       const hit = Array.isArray(results) ? results[0] : null;
       if (!hit) throw new Error("No results");
+      
+      setLoadingStage('Location found!');
+      setLoadingProgress(40);
   const addr = hit.address || {};
   const displayLocality = typeof hit.display_name === "string" ? hit.display_name.split(",")[0] : undefined;
   const locality = addr.city || addr.town || addr.village || addr.hamlet || addr.municipality || addr.suburb || displayLocality;
@@ -3301,6 +3358,12 @@ export default function App() {
             } : null}
             score={selectedHourDisplay?.score ?? (selectedHourData.score ? getDisplayedScore(selectedHourData.score, runnerBoldness) : null)}
             variants={{ staggerContainer, listItemVariants }}
+            hourData={selectedHourData}
+            unit={unit}
+            gender={gender}
+            runType={runType}
+            tempSensitivity={tempSensitivity}
+            currentLocation={place?.name || ''}
           />
         )}
       </DynamicModal>
@@ -3310,12 +3373,8 @@ export default function App() {
         {(initializing || loading) && (
           <LoadingSplash 
             isLoading={true}
-            progress={initializing ? (wx ? 80 : 30) : (loading ? (wx ? 90 : 60) : 100)}
-            stage={
-              initializing ? (place ? 'Initializing — fetching weather...' : 'Initializing — getting location...') :
-              loading ? (wx ? 'Refreshing weather...' : 'Fetching weather data...') :
-              'Loading complete'
-            }
+            progress={loadingProgress}
+            stage={loadingStage}
           />
         )}
       </AnimatePresence>

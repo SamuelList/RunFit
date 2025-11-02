@@ -133,12 +133,10 @@ const Dashboard = () => {
                                         
                                         {!aiResult.loading && aiResult.mapped && aiResult.mapped.length > 0 && (
                                             <motion.div
+                                                key="ai-items"
                                                 className="space-y-2"
-                                                variants={staggerContainer}
-                                                initial="initial"
-                                                animate="animate"
                                             >
-                                                {aiResult.mapped.map((item) => (
+                                                {aiResult.mapped.map((item, index) => (
                                                     <OutfitItem
                                                         key={item.key}
                                                         item={{
@@ -146,7 +144,7 @@ const Dashboard = () => {
                                                             label: item.name,
                                                             isAiSuggested: true
                                                         }}
-                                                        listItemVariants={listItemVariants}
+                                                        index={index}
                                                         onClick={() => setSelectedOutfitItem(item.key)}
                                                     />
                                                 ))}
@@ -163,17 +161,38 @@ const Dashboard = () => {
                                     </>
                                 ) : (
                                     <motion.div
+                                        key={`outfit-${activeOption}`}
                                         className="space-y-2"
                                         variants={staggerContainer}
                                         initial="initial"
                                         animate="animate"
                                     >
-                                        {activeItems.map((item) => (
+                                        {activeItems.map((item, index) => (
                                             <motion.div
                                                 key={item.key}
                                                 className="group relative rounded-xl border border-gray-200/60 dark:border-slate-700/60 bg-gradient-to-br from-white to-gray-50/30 dark:from-slate-800/40 dark:to-slate-900/40 px-4 py-3 transition-all hover:shadow-sm hover:border-gray-300 dark:hover:border-slate-600 cursor-pointer"
-                                                variants={listItemVariants}
-                                                whileHover={{ x: 4, transition: { duration: 0.2 } }}
+                                                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                                                animate={{ 
+                                                    opacity: 1, 
+                                                    y: 0, 
+                                                    scale: 1,
+                                                    transition: { 
+                                                        duration: 0.4,
+                                                        delay: index * 0.08,
+                                                        ease: [0.25, 0.46, 0.45, 0.94]
+                                                    }
+                                                }}
+                                                exit={{ 
+                                                    opacity: 0, 
+                                                    y: -10, 
+                                                    scale: 0.95,
+                                                    transition: { duration: 0.2 }
+                                                }}
+                                                whileHover={{ 
+                                                    x: 6, 
+                                                    scale: 1.02,
+                                                    transition: { duration: 0.2, ease: "easeOut" } 
+                                                }}
                                                 onClick={() => setSelectedOutfitItem(item.key)}
                                             >
                                                 <div className="flex items-center justify-between gap-3">

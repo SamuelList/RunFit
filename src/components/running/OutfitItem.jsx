@@ -17,10 +17,10 @@ import { GEAR_INFO, GEAR_ICONS } from "../../utils/gearData";
  * @param {boolean} props.item.workout - Show workout badge
  * @param {boolean} props.item.longRun - Show long run badge
  * @param {boolean} props.item.isAiSuggested - Show AI suggestion badge
- * @param {Object} props.listItemVariants - Framer Motion animation variants
+ * @param {number} props.index - Item index for staggered animations
  * @param {Function} props.onClick - Click handler for item selection
  */
-const OutfitItem = ({ item, listItemVariants, onClick }) => {
+const OutfitItem = ({ item, index = 0, onClick }) => {
   const [imgLoaded, setImgLoaded] = useState(false);
   const gearInfo = GEAR_INFO[item.key];
   const Icon = GEAR_ICONS[item.key] || UserRound;
@@ -29,8 +29,28 @@ const OutfitItem = ({ item, listItemVariants, onClick }) => {
   return (
     <motion.div
       className="group relative rounded-xl border border-gray-200/60 dark:border-slate-700/60 bg-gradient-to-br from-white to-gray-50/30 dark:from-slate-800/40 dark:to-slate-900/40 px-4 py-3 transition-all hover:shadow-sm hover:border-gray-300 dark:hover:border-slate-600 cursor-pointer"
-      variants={listItemVariants}
-      whileHover={{ x: 4, transition: { duration: 0.2 } }}
+      initial={{ opacity: 0, y: 20, scale: 0.95 }}
+      animate={{ 
+        opacity: 1, 
+        y: 0, 
+        scale: 1,
+        transition: { 
+          duration: 0.4,
+          delay: index * 0.08,
+          ease: [0.25, 0.46, 0.45, 0.94]
+        }
+      }}
+      exit={{ 
+        opacity: 0, 
+        y: -10, 
+        scale: 0.95,
+        transition: { duration: 0.2 }
+      }}
+      whileHover={{ 
+        x: 6, 
+        scale: 1.02,
+        transition: { duration: 0.2, ease: "easeOut" } 
+      }}
       onClick={onClick}
     >
       <div className="flex items-center justify-between gap-3">
