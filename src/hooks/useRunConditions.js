@@ -4,14 +4,19 @@ import { GEAR_INFO } from '../utils/gearData';
 import { clamp, round1 } from '../utils/helpers';
 import { dewPointF, scoreLabel, scoreBasedTone } from '../utils/scoring';
 import { handsLevelFromGear, handsLabel, handsTone } from '../utils/outfit/outfitHelpers';
+import { calculateMoonPosition } from '../utils/solar';
 
 // Import the outfitFor function - it should be extracted to utils
 // For now, we'll import it from the constants or leave a placeholder
 
 /**
- * Calculate moon phase
+ * Calculate moon phase and position
+ * @param {number} timestamp - Time in milliseconds
+ * @param {number} latitude - Latitude in degrees  
+ * @param {number} longitude - Longitude in degrees
+ * @returns {object} Moon phase data with position information
  */
-function calculateMoonPhase(timestamp) {
+function calculateMoonPhase(timestamp, latitude = null, longitude = null) {
   const date = new Date(timestamp);
   const year = date.getFullYear();
   const month = date.getMonth() + 1;
@@ -58,6 +63,12 @@ function calculateMoonPhase(timestamp) {
     daysToFull = Math.round((0.5 + (1 - phase)) * synodicMonth);
   }
   
+  // Calculate moon position if coordinates are provided
+  let position = null;
+  if (latitude !== null && longitude !== null) {
+    position = calculateMoonPosition({ latitude, longitude, timestamp });
+  }
+  
   return {
     name: phaseName,
     emoji,
@@ -67,7 +78,8 @@ function calculateMoonPhase(timestamp) {
     isWaxing,
     daysToFull: Math.max(0, daysToFull),
     daysToNew: Math.max(0, daysToNew),
-    phaseIndex
+    phaseIndex,
+    position, // { altitude, azimuth, isVisible, direction }
   };
 }
 
@@ -97,6 +109,7 @@ function calculateMoonPhase(timestamp) {
  * @param {number} runnerBoldness - Runner confidence level (-2 to +2)
  * @param {number} runHoursStart - Start of preferred run hours
  * @param {number} runHoursEnd - End of preferred run hours
+ * @param {Object} place - Location data with lat/lon
  * @param {Function} outfitFor - Outfit calculation function (imported from utils)
  * @param {Function} getDisplayedScore - Score display adjustment function
  * @param {Function} setSelectedHourData - Hour selection callback
@@ -108,7 +121,7 @@ function calculateMoonPhase(timestamp) {
  * const derived = useRunConditions(
  *   wx, unit, runType, coldHands, gender,
  *   customTempEnabled, customTempInput, twilightTerms,
- *   tempSensitivity, runnerBoldness, runHoursStart, runHoursEnd,
+ *   tempSensitivity, runnerBoldness, runHoursStart, runHoursEnd, place,
  *   outfitFor, getDisplayedScore, setSelectedHourData, setShowHourBreakdown
  * );
  */
@@ -125,6 +138,7 @@ export function useRunConditions(
   runnerBoldness,
   runHoursStart,
   runHoursEnd,
+  place,
   outfitFor,
   getDisplayedScore,
   setSelectedHourData,
@@ -281,7 +295,12 @@ export function useRunConditions(
     const duskMs = parseTimes(wx.duskTimes);
     const now = Date.now();
     
-    const moonPhase = calculateMoonPhase(now);
+    // Calculate moon phase with position data
+    const moonPhase = calculateMoonPhase(
+      now, 
+      place?.lat || null, 
+      place?.lon || null
+    );
     const nextSunrise = sunriseMs.find((t) => t > now);
     const nextSunset = sunsetMs.find((t) => t > now);
     const nextDawn = dawnMs.find((t) => t > now);

@@ -14,7 +14,8 @@ import VisibilityMetrics from './VisibilityMetrics';
  * 
  * Features:
  * - Moon phase visualization with SVG rendering
- * - Effective visibility calculation (moon × sky clarity × fog factor)
+ * - Effective visibility calculation (moon × sky clarity × fog factor × moon altitude)
+ * - Accurate moon position tracking (altitude/azimuth)
  * - Color-coded visibility assessment
  * - Route recommendations based on conditions
  * - Safety gear recommendations
@@ -31,6 +32,11 @@ import VisibilityMetrics from './VisibilityMetrics';
  * @param {boolean} props.moonPhase.isWaxing - Whether moon is waxing
  * @param {number} props.moonPhase.daysToFull - Days until full moon
  * @param {number} props.moonPhase.daysToNew - Days until new moon
+ * @param {Object} [props.moonPosition] - Moon position data (altitude/azimuth)
+ * @param {number} props.moonPosition.altitude - Moon elevation above horizon in degrees (-90 to +90)
+ * @param {number} props.moonPosition.azimuth - Moon direction from north (0-360 degrees)
+ * @param {boolean} props.moonPosition.isVisible - Whether moon is above horizon
+ * @param {string} props.moonPosition.direction - Cardinal direction (N, NE, E, SE, S, SW, W, NW)
  * @param {Object} props.wx - Weather data
  * @param {number} props.wx.cloud - Cloud cover percentage
  * @param {number} props.wx.humidity - Humidity percentage
@@ -47,12 +53,19 @@ import VisibilityMetrics from './VisibilityMetrics';
  *     name: "Waxing Gibbous",
  *     emoji: "🌔"
  *   }}
+ *   moonPosition={{
+ *     altitude: 45,
+ *     azimuth: 135,
+ *     isVisible: true,
+ *     direction: "SE"
+ *   }}
  *   wx={{ cloud: 20, humidity: 65, temperature: 52, isDay: false }}
  *   dewPoint={45}
  * />
  */
 const NightRunningCard = ({ 
   moonPhase, 
+  moonPosition,
   wx, 
   dewPoint, 
   smartNightCard = false,
@@ -67,7 +80,38 @@ const NightRunningCard = ({
   const tempDewDiff = Math.abs((wx?.temperature || 0) - (dewPoint || 0));
   const isFoggy = humidity > 85 && tempDewDiff < 5;
   const fogFactor = isFoggy ? 0.3 : humidity > 90 && tempDewDiff < 8 ? 0.6 : 1.0;
-  const effectiveVis = Math.round((moonLight * skyClarity / 100) * fogFactor);
+  
+  // Calculate moon altitude factor
+  // If moon is below horizon, it provides zero light regardless of phase
+  // As moon rises higher, it provides more effective illumination
+  let moonAltitudeFactor = 0;
+  let moonBelowHorizon = false;
+  
+  if (moonPosition?.isVisible && moonPosition.altitude !== undefined) {
+    // Moon is above horizon
+    // Scale from 0 (at horizon) to 1.0 (at 60° altitude or higher)
+    // Low moon angles have atmospheric extinction reducing brightness
+    const altitude = moonPosition.altitude;
+    if (altitude <= 0) {
+      moonAltitudeFactor = 0;
+      moonBelowHorizon = true;
+    } else if (altitude >= 60) {
+      moonAltitudeFactor = 1.0;
+    } else {
+      // Gradual increase: 0° = 0%, 30° = 70%, 60° = 100%
+      moonAltitudeFactor = Math.min(1.0, (altitude / 60) * 0.85 + 0.15);
+    }
+  } else {
+    // Moon position not available or moon below horizon
+    moonBelowHorizon = true;
+    moonAltitudeFactor = 0;
+  }
+  
+  // Effective visibility combines moon phase, sky clarity, fog, and moon altitude
+  const effectiveVis = moonBelowHorizon 
+    ? 0 
+    : Math.round((moonLight * skyClarity * moonAltitudeFactor / 100) * fogFactor);
+  
   
   // Check if it's nighttime
   const isNightTime = wx?.isDay === false;
@@ -90,6 +134,25 @@ const NightRunningCard = ({
    * Gets visibility assessment data based on effective visibility percentage
    */
   const getVisibilityAssessment = () => {
+    // Special case: moon below horizon
+    if (moonBelowHorizon) {
+      return {
+        level: 'moon-down',
+        title: '🌑 Moon Below Horizon',
+        description: `Moon has set (${moonPhase.name}). ${isFoggy ? 'Fog + ' : skyClarity < 30 ? 'Heavy clouds + ' : ''}No natural moonlight available. Powerful headlamp (300+ lumens) + reflective gear essential.`,
+        borderColor: 'border-slate-400 dark:border-slate-600',
+        bgColor: 'bg-slate-50/50 dark:bg-slate-500/10',
+        iconBg: 'bg-slate-100 dark:bg-slate-500/20',
+        iconText: 'text-slate-700 dark:text-slate-300',
+        textColor: 'text-slate-900 dark:text-slate-100',
+        routes: [
+          { icon: '!', color: 'text-yellow-500', text: 'Well-lit paths only' },
+          { icon: '✗', color: 'text-red-500', text: 'Avoid unlit areas' },
+          { icon: '→', color: 'text-blue-500', text: 'Consider treadmill or wait for moonrise' }
+        ]
+      };
+    }
+    
     if (effectiveVis >= 70) {
       return {
         level: 'exceptional',
@@ -198,6 +261,7 @@ const NightRunningCard = ({
               <MoonPhaseVisual moonPhase={moonPhase} />
               <VisibilityMetrics 
                 moonPhase={moonPhase}
+                moonPosition={moonPosition}
                 wx={wx}
                 effectiveVis={effectiveVis}
                 skyClarity={skyClarity}

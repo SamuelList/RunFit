@@ -8,7 +8,8 @@ import { MapPin, Thermometer, Droplets, Wind, CloudRain, Sun, Hand, Info, Flame,
 import { RadialBarChart, RadialBar, PolarAngleAxis } from "recharts";
 
 // Utils
-import { computeSunEvents, calculateSolarElevation, calculateMoonPosition } from "./utils/solar";
+import SunCalc from 'suncalc';
+import { computeSunEvents, calculateSolarElevation } from "./utils/solar";
 import { calculateMRT, getMRTCategory, calculateEffectiveSolarTemp } from "./utils/mrt";
 import { calculateUTCI, getUTCICategory, getUTCIColorClasses } from "./utils/utci";
 import { GEAR_INFO, GEAR_ICONS } from "./utils/gearData";
@@ -1421,104 +1422,75 @@ export default function App() {
   const duskMs = parseTimes(wx.duskTimes);
   const now = Date.now();
   
-  // Enhanced moon phase calculation with accurate illumination
-  const calculateMoonPhase = (timestamp) => {
-    const date = new Date(timestamp);
-    
-    // More accurate moon phase calculation
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
-    const day = date.getDate();
-    
-    // Convert to Julian date
-    let a = Math.floor((14 - month) / 12);
-    let y = year + 4800 - a;
-    let m = month + 12 * a - 3;
-    let jd = day + Math.floor((153 * m + 2) / 5) + 365 * y + Math.floor(y / 4) - Math.floor(y / 100) + Math.floor(y / 400) - 32045;
-    
-    // Days since known new moon (Jan 6, 2000)
-    const daysSinceNew = jd - 2451549.5;
-    
-    // Synodic month (new moon to new moon)
-    const synodicMonth = 29.53058867;
-    
-    // Current phase in cycle (0 = new, 0.5 = full)
-    const phase = (daysSinceNew % synodicMonth) / synodicMonth;
-    
-    // Illumination (0 to 1)
-    const illumination = (1 - Math.cos(phase * 2 * Math.PI)) / 2;
-    
-    // Determine phase name and emoji
-    let phaseName, emoji, phaseIndex;
-    const isWaxing = phase < 0.5;
-    
-    if (phase < 0.0625 || phase >= 0.9375) {
-      phaseName = "New Moon";
-      emoji = "🌑";
-      phaseIndex = 0;
-    } else if (phase < 0.1875) {
-      phaseName = "Waxing Crescent";
-      emoji = "🌒";
-      phaseIndex = 1;
-    } else if (phase < 0.3125) {
-      phaseName = "First Quarter";
-      emoji = "🌓";
-      phaseIndex = 2;
-    } else if (phase < 0.4375) {
-      phaseName = "Waxing Gibbous";
-      emoji = "🌔";
-      phaseIndex = 3;
-    } else if (phase < 0.5625) {
-      phaseName = "Full Moon";
-      emoji = "🌕";
-      phaseIndex = 4;
-    } else if (phase < 0.6875) {
-      phaseName = "Waning Gibbous";
-      emoji = "🌖";
-      phaseIndex = 5;
-    } else if (phase < 0.8125) {
-      phaseName = "Last Quarter";
-      emoji = "🌗";
-      phaseIndex = 6;
-    } else {
-      phaseName = "Waning Crescent";
-      emoji = "🌘";
-      phaseIndex = 7;
-    }
-    
-    // Calculate days to next full and new moon
-    let daysToFull, daysToNew;
-    if (phase < 0.5) {
-      // Waxing: moving toward full
-      daysToFull = Math.round((0.5 - phase) * synodicMonth);
-      daysToNew = Math.round((1 - phase) * synodicMonth);
-    } else {
-      // Waning: moving toward new
-      daysToNew = Math.round((1 - phase) * synodicMonth);
-      daysToFull = Math.round((0.5 + (1 - phase)) * synodicMonth);
-    }
-    
-    return {
-      name: phaseName,
-      emoji,
-      phase, // 0 to 1
-      illumination, // 0 to 1 (accurate light percentage)
-      illuminationPct: Math.round(illumination * 100),
-      isWaxing,
-      daysToFull: Math.max(0, daysToFull),
-      daysToNew: Math.max(0, daysToNew),
-      phaseIndex
-    };
+  // Use SunCalc for accurate moon calculations
+  const moonIllumination = SunCalc.getMoonIllumination(new Date(now));
+  const moonPositionData = SunCalc.getMoonPosition(new Date(now), place.lat, place.lon);
+  const moonTimes = SunCalc.getMoonTimes(new Date(now), place.lat, place.lon);
+  
+  // Determine phase name and emoji based on SunCalc phase value
+  const getMoonPhaseName = (phase) => {
+    if (phase < 0.0625 || phase >= 0.9375) return { name: "New Moon", emoji: "🌑", index: 0 };
+    if (phase < 0.1875) return { name: "Waxing Crescent", emoji: "🌒", index: 1 };
+    if (phase < 0.3125) return { name: "First Quarter", emoji: "🌓", index: 2 };
+    if (phase < 0.4375) return { name: "Waxing Gibbous", emoji: "🌔", index: 3 };
+    if (phase < 0.5625) return { name: "Full Moon", emoji: "🌕", index: 4 };
+    if (phase < 0.6875) return { name: "Waning Gibbous", emoji: "🌖", index: 5 };
+    if (phase < 0.8125) return { name: "Last Quarter", emoji: "🌗", index: 6 };
+    return { name: "Waning Crescent", emoji: "🌘", index: 7 };
   };
   
-  const moonPhase = calculateMoonPhase(now);
+  const phaseInfo = getMoonPhaseName(moonIllumination.phase);
+  const isWaxing = moonIllumination.angle < 0;
   
-  // Calculate moon position for visibility check
-  const moonPosition = calculateMoonPosition({
-    latitude: place.lat,
-    longitude: place.lon,
-    timestamp: now
-  });
+  // Calculate days to next full and new moon
+  const synodicMonth = 29.53058867;
+  let daysToFull, daysToNew;
+  if (moonIllumination.phase < 0.5) {
+    daysToFull = Math.round((0.5 - moonIllumination.phase) * synodicMonth);
+    daysToNew = Math.round((1 - moonIllumination.phase) * synodicMonth);
+  } else {
+    daysToNew = Math.round((1 - moonIllumination.phase) * synodicMonth);
+    daysToFull = Math.round((0.5 + (1 - moonIllumination.phase)) * synodicMonth);
+  }
+  
+  const moonPhase = {
+    name: phaseInfo.name,
+    emoji: phaseInfo.emoji,
+    phase: moonIllumination.phase,
+    illumination: moonIllumination.fraction,
+    illuminationPct: Math.round(moonIllumination.fraction * 100),
+    isWaxing,
+    daysToFull: Math.max(0, daysToFull),
+    daysToNew: Math.max(0, daysToNew),
+    phaseIndex: phaseInfo.index,
+    angle: moonIllumination.angle
+  };
+  
+  // Convert moon position from radians to degrees and add helper info
+  const getCardinalDirection = (azimuthRad) => {
+    const azimuthDeg = (azimuthRad * 180 / Math.PI + 180) % 360;
+    if (azimuthDeg < 22.5 || azimuthDeg >= 337.5) return 'N';
+    if (azimuthDeg < 67.5) return 'NE';
+    if (azimuthDeg < 112.5) return 'E';
+    if (azimuthDeg < 157.5) return 'SE';
+    if (azimuthDeg < 202.5) return 'S';
+    if (azimuthDeg < 247.5) return 'SW';
+    if (azimuthDeg < 292.5) return 'W';
+    return 'NW';
+  };
+  
+  const moonPosition = {
+    altitude: moonPositionData.altitude * 180 / Math.PI, // Convert to degrees
+    azimuth: moonPositionData.azimuth * 180 / Math.PI + 180, // Convert to degrees, 0-360
+    distance: moonPositionData.distance,
+    parallacticAngle: moonPositionData.parallacticAngle,
+    isVisible: moonPositionData.altitude > -0.833 * Math.PI / 180, // Account for refraction
+    direction: getCardinalDirection(moonPositionData.azimuth),
+    rise: moonTimes.rise,
+    set: moonTimes.set,
+    alwaysUp: moonTimes.alwaysUp,
+    alwaysDown: moonTimes.alwaysDown
+  };
   
   const nextSunrise = sunriseMs.find((t) => t > now);
   const nextSunset = sunsetMs.find((t) => t > now);
@@ -2519,6 +2491,7 @@ export default function App() {
                   {/* Night Running Conditions Card */}
                   <NightRunningCard
                     moonPhase={derived?.moonPhase}
+                    moonPosition={derived?.moonPosition}
                     wx={wx}
                     dewPoint={derived?.dewPointDisplay}
                     smartNightCard={smartNightCard}

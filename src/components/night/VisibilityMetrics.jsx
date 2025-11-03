@@ -2,21 +2,33 @@
  * VisibilityMetrics Component
  * 
  * Displays detailed breakdown of night visibility calculations including
- * moon illumination, sky clarity, and atmospheric penalties (fog/haze).
- * Shows the formula: Effective Visibility = (Moon × Sky Clarity) × Fog Factor
+ * moon illumination, sky clarity, moon position, and atmospheric penalties (fog/haze).
+ * Shows the formula: Effective Visibility = (Moon × Sky Clarity × Altitude Factor) × Fog Factor
+ * Uses SunCalc.org data for accurate moon position and rise/set times.
  * 
  * Features:
  * - Moon light percentage with quality label
  * - Sky clarity with cloud cover description
+ * - Moon position (altitude and direction)
+ * - Moonrise/moonset times
  * - Fog/haze penalty detection and display
  * - Animated progress bar for effective visibility
  * - Color-coded metrics cards
  * 
  * @component
  * @param {Object} props - Component props
- * @param {Object} props.moonPhase - Moon phase data
+ * @param {Object} props.moonPhase - Moon phase data from SunCalc
  * @param {number} props.moonPhase.illuminationPct - Moon illumination percentage
  * @param {number} props.moonPhase.illumination - Moon illumination decimal (0-1)
+ * @param {Object} [props.moonPosition] - Moon position data from SunCalc
+ * @param {number} props.moonPosition.altitude - Moon elevation above horizon in degrees
+ * @param {number} props.moonPosition.azimuth - Moon direction from north (0-360 degrees)
+ * @param {boolean} props.moonPosition.isVisible - Whether moon is above horizon
+ * @param {string} props.moonPosition.direction - Cardinal direction (N, NE, E, etc.)
+ * @param {Date} [props.moonPosition.rise] - Moonrise time
+ * @param {Date} [props.moonPosition.set] - Moonset time
+ * @param {boolean} [props.moonPosition.alwaysUp] - Moon never sets today
+ * @param {boolean} [props.moonPosition.alwaysDown] - Moon never rises today
  * @param {Object} props.wx - Weather data
  * @param {number} props.wx.cloud - Cloud cover percentage
  * @param {number} props.wx.humidity - Humidity percentage
@@ -28,13 +40,21 @@
  * @example
  * <VisibilityMetrics
  *   moonPhase={{ illuminationPct: 85, illumination: 0.85 }}
+ *   moonPosition={{ 
+ *     altitude: 45, 
+ *     azimuth: 135, 
+ *     isVisible: true, 
+ *     direction: "SE",
+ *     rise: new Date(),
+ *     set: new Date()
+ *   }}
  *   wx={{ cloud: 20, humidity: 65, temperature: 52 }}
  *   effectiveVis={68}
  *   skyClarity={80}
  *   dewPoint={45}
  * />
  */
-const VisibilityMetrics = ({ moonPhase, wx, effectiveVis, skyClarity, dewPoint }) => {
+const VisibilityMetrics = ({ moonPhase, moonPosition, wx, effectiveVis, skyClarity, dewPoint }) => {
   if (!moonPhase || !wx) return null;
 
   const humidity = wx.humidity || 0;
@@ -43,54 +63,89 @@ const VisibilityMetrics = ({ moonPhase, wx, effectiveVis, skyClarity, dewPoint }
   const isHazy = humidity > 90 && tempDewDiff < 8 && !isFoggy;
 
   /**
-   * Gets moon light quality description
+   * Format time for moonrise/moonset display
    */
-  const getMoonLightQuality = () => {
-    if (moonPhase.illumination >= 0.75) return 'Very bright';
-    if (moonPhase.illumination >= 0.5) return 'Moderate';
-    if (moonPhase.illumination >= 0.25) return 'Dim';
-    return 'Very dark';
-  };
-
-  /**
-   * Gets sky clarity description
-   */
-  const getSkyClarityDescription = () => {
-    const cloud = wx.cloud || 0;
-    if (cloud < 20) return 'Clear skies';
-    if (cloud < 50) return 'Partly cloudy';
-    if (cloud < 80) return 'Mostly cloudy';
-    return 'Overcast';
+  const formatMoonTime = (date) => {
+    if (!date || !(date instanceof Date)) return null;
+    try {
+      return new Intl.DateTimeFormat(undefined, {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      }).format(date);
+    } catch {
+      return null;
+    }
   };
 
   return (
     <>
-      {/* Moon Light & Sky Clarity Grid */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-xl border border-indigo-200/50 dark:border-indigo-500/30 bg-gradient-to-br from-indigo-50/50 to-purple-50/30 dark:from-indigo-500/10 dark:to-purple-500/5 p-4">
-          <div className="text-xs font-medium uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
-            Moon Light
+      {/* Moon Position (if available) */}
+      {moonPosition && (
+        <div className="rounded-xl border border-slate-200/50 dark:border-slate-600/50 bg-gradient-to-br from-slate-50/50 to-gray-50/30 dark:from-slate-500/10 dark:to-gray-500/5 p-4">
+          <div className="text-xs font-medium uppercase tracking-wide text-slate-700 dark:text-slate-300 mb-2">
+            Moon Position • SunCalc.org
           </div>
-          <div className="mt-1 text-3xl font-bold text-indigo-900 dark:text-indigo-100">
-            {moonPhase.illuminationPct}%
+          <div className="grid grid-cols-2 gap-4 mb-3">
+            <div>
+              <div className="text-xs text-gray-600 dark:text-slate-400">Altitude</div>
+              <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+                {moonPosition.isVisible ? `${Math.round(moonPosition.altitude)}°` : 'Below horizon'}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-600 dark:text-slate-400">Direction</div>
+              <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+                {moonPosition.isVisible ? moonPosition.direction : '—'}
+              </div>
+            </div>
           </div>
-          <div className="mt-1 text-xs text-gray-600 dark:text-slate-400">
-            {getMoonLightQuality()}
-          </div>
+          
+          {/* Moonrise/Moonset times */}
+          {(moonPosition.alwaysUp || moonPosition.alwaysDown || moonPosition.rise || moonPosition.set) && (
+            <div className="border-t border-slate-200/50 dark:border-slate-600/50 pt-3 space-y-1.5">
+              {moonPosition.alwaysUp && (
+                <div className="text-xs text-indigo-700 dark:text-indigo-400 flex items-center gap-1">
+                  <span>⭕</span>
+                  <span>Moon never sets today (circumpolar)</span>
+                </div>
+              )}
+              {moonPosition.alwaysDown && (
+                <div className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1">
+                  <span>⭕</span>
+                  <span>Moon never rises today</span>
+                </div>
+              )}
+              {!moonPosition.alwaysUp && !moonPosition.alwaysDown && (
+                <>
+                  {moonPosition.rise && formatMoonTime(moonPosition.rise) && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-600 dark:text-slate-400">Moonrise:</span>
+                      <span className="font-medium text-slate-900 dark:text-slate-100">
+                        {formatMoonTime(moonPosition.rise)}
+                      </span>
+                    </div>
+                  )}
+                  {moonPosition.set && formatMoonTime(moonPosition.set) && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-600 dark:text-slate-400">Moonset:</span>
+                      <span className="font-medium text-slate-900 dark:text-slate-100">
+                        {formatMoonTime(moonPosition.set)}
+                      </span>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+          
+          {!moonPosition.isVisible && !moonPosition.alwaysDown && (
+            <div className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+              Moon has set • Zero moonlight available
+            </div>
+          )}
         </div>
-        
-        <div className="rounded-xl border border-blue-200/50 dark:border-blue-500/30 bg-gradient-to-br from-blue-50/50 to-sky-50/30 dark:from-blue-500/10 dark:to-sky-500/5 p-4">
-          <div className="text-xs font-medium uppercase tracking-wide text-blue-700 dark:text-blue-300">
-            Sky Clarity
-          </div>
-          <div className="mt-1 text-3xl font-bold text-blue-900 dark:text-blue-100">
-            {skyClarity.toFixed(1)}%
-          </div>
-          <div className="mt-1 text-xs text-gray-600 dark:text-slate-400">
-            {getSkyClarityDescription()}
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Effective Visibility Calculation */}
       <div className="rounded-xl border-2 border-purple-200/60 dark:border-purple-500/40 bg-gradient-to-br from-purple-50/60 via-fuchsia-50/40 to-pink-50/30 dark:from-purple-500/15 dark:via-fuchsia-500/10 dark:to-pink-500/5 p-4">
@@ -112,6 +167,16 @@ const VisibilityMetrics = ({ moonPhase, wx, effectiveVis, skyClarity, dewPoint }
             <span>Sky clarity:</span>
             <span className="font-medium">{skyClarity.toFixed(1)}%</span>
           </div>
+          {moonPosition && (
+            <div className="flex justify-between">
+              <span>Moon altitude factor:</span>
+              <span className="font-medium">
+                {moonPosition.isVisible && moonPosition.altitude > 0
+                  ? `${Math.round(Math.min(1.0, (moonPosition.altitude / 60) * 0.85 + 0.15) * 100)}%`
+                  : '0% (below horizon)'}
+              </span>
+            </div>
+          )}
           {isFoggy && (
             <div className="flex justify-between text-amber-700 dark:text-amber-300">
               <span>Fog penalty:</span>
