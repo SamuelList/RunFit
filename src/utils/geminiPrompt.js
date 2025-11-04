@@ -275,7 +275,7 @@ export function buildGeminiPrompt({ derived, wx, unit = 'F', gender = 'Male', ru
 Role and Goal: Act as an expert running coach. Your task is to provide a gear recommendation and run strategy based only on the data I provide.
 Core Rules:
 1. Use only the data provided in the "Input Data" section.
-2. Do not use any external tools, web searches, or real-time data.
+2. Use any external tools, web searches, or real-time data.
 3. Your response must be based on reasoning and inference from the provided data alone.
 4. Adhere strictly to the "Required Output Format." 
 
@@ -305,7 +305,7 @@ Core Rules:
 You must structure your response in these three exact sections:
 
 Weather Analysis
-First, analyze the "Feels Like" effect (do not perform a mathematical calculation). Synthesize all relevant weather data to estimate the perceived temperature. Explain your reasoning for this perceived feel. Thoroughly analyze what this means for the run. Finally, comment on the weather trend and how its stability simplifies gear choice. Acknowledge the fact that when the sun is out and shining down on you, it affects a lot and vice versa.
+First, analyze the "Feels Like" effect (do not perform a mathematical calculation). Synthesize all relevant weather data to estimate the perceived temperature. Explain your reasoning for this perceived feel. Thoroughly analyze what this means for the run. Finally, comment on the weather trend and how its stability simplifies gear choice. Acknowledge the fact that when the sun is out and shining down on you, it affects a lot and vice versa. Explain your thought process in extreme great detail. Think about the time of day and how things may change in the next hour or so. Don’t skimp on this analysis.
 
 Gear Recommendation (${runType === 'easy' ? 'Easy Run' : runType === 'workout' ? 'Hard Workout' : 'Long Run'})
 Based on your Weather Analysis and the Adaptive Logic for the given Effort, create a simple, clean list of items selected only from the Master Gear List.
