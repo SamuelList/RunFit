@@ -70,7 +70,15 @@ const Dashboard = () => {
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div className="flex items-center gap-2">
                                 <div className="h-1.5 w-1.5 rounded-full bg-emerald-500"></div>
-                                <CardTitle className="text-base">{optionTitle}</CardTitle>
+                                <CardTitle className="text-base">
+                                    {activeOption === 'C' && aiResult.model ? (
+                                        aiResult.model.includes('flash') 
+                                            ? 'Gemini Flash Outfit' 
+                                            : aiResult.model.includes('pro')
+                                                ? 'Gemini Pro Outfit'
+                                                : optionTitle
+                                    ) : optionTitle}
+                                </CardTitle>
                             </div>
                             <SegmentedControl
                                 value={activeOption}
@@ -142,15 +150,6 @@ const Dashboard = () => {
                                                         onClick={() => setSelectedOutfitItem(item.key)}
                                                     />
                                                 ))}
-                                                
-                                                {/* Model tag */}
-                                                {aiResult.model && (
-                                                    <div className="flex justify-end pt-1">
-                                                        <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                                                            {aiResult.model}
-                                                        </span>
-                                                    </div>
-                                                )}
                                             </motion.div>
                                         )}
                                             </motion.div>
@@ -281,7 +280,13 @@ const Dashboard = () => {
                                         {aiResult.data ? <Sparkles className="h-4 w-4 text-white" /> : <Flame className="h-4 w-4 text-white" />}
                                     </div>
                                     <CardTitle className="text-base">
-                                        {aiResult.data ? 'AI Run Strategy' : `${runType === 'easy' ? 'Easy Run' : runType === 'workout' ? 'Hard Workout' : 'Long Run'} Strategy`}
+                                        {aiResult.data ? (
+                                            aiResult.model?.includes('flash') 
+                                                ? 'Gemini Flash Run Strategy' 
+                                                : aiResult.model?.includes('pro')
+                                                    ? 'Gemini Pro Run Strategy'
+                                                    : 'AI Run Strategy'
+                                        ) : `${runType === 'easy' ? 'Easy Run' : runType === 'workout' ? 'Hard Workout' : 'Long Run'} Strategy`}
                                     </CardTitle>
                                 </div>
                                 {!aiResult.data && derived?.roadConditions?.hasWarnings && (

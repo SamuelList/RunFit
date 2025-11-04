@@ -295,7 +295,15 @@ const TomorrowOutfit = ({
                   <Calendar className="h-7 w-7 text-white" />
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-white">Tomorrow's Run</div>
+                  <div className="text-2xl font-bold text-white">
+                    {tomorrowCardOption === 'C' && aiResult.model ? (
+                      aiResult.model.includes('flash') 
+                        ? "Tomorrow's Run (Gemini Flash)" 
+                        : aiResult.model.includes('pro')
+                          ? "Tomorrow's Run (Gemini Pro)"
+                          : "Tomorrow's Run"
+                    ) : "Tomorrow's Run"}
+                  </div>
                   <div className={`text-sm ${
                     gender === "Female"
                       ? "text-pink-100"
@@ -455,15 +463,6 @@ const TomorrowOutfit = ({
                   );
                 })}
               </div>
-              
-              {/* Model tag */}
-              {tomorrowCardOption === 'C' && aiResult.model && (
-                <div className="flex justify-end">
-                  <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                    {aiResult.model}
-                  </span>
-                </div>
-              )}
             </div>
           </div>
           {info && (
@@ -490,7 +489,15 @@ const TomorrowOutfit = ({
           <CardTitle className="flex items-center justify-between text-base">
             <span className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-              <span className="text-slate-700 dark:text-slate-200">Tomorrow's Run</span>
+              <span className="text-slate-700 dark:text-slate-200">
+                {tomorrowCardOption === 'C' && aiResult.model ? (
+                  aiResult.model.includes('flash') 
+                    ? "Tomorrow (Gemini Flash)" 
+                    : aiResult.model.includes('pro')
+                      ? "Tomorrow (Gemini Pro)"
+                      : "Tomorrow's Run"
+                ) : "Tomorrow's Run"}
+              </span>
             </span>
             <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
               {tomorrow.toLocaleDateString([], { weekday: 'short' })} @ {tomorrowRunHour === 0 ? '12 AM' : tomorrowRunHour < 12 ? `${tomorrowRunHour} AM` : tomorrowRunHour === 12 ? '12 PM' : `${tomorrowRunHour - 12} PM`}
