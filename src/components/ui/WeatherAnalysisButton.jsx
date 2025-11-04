@@ -21,8 +21,9 @@ const WeatherAnalysisButton = ({ aiData }) => {
     let endIdx = -1;
     
     // Find start - look for any line containing "weather" and "analysis" (case insensitive)
+    // OR just the beginning if no section headers are found
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].toLowerCase();
+      const line = lines[i].toLowerCase().trim();
       if (line.includes('weather') && line.includes('analysis')) {
         startIdx = i;
         console.log('Found Weather Analysis header at line', i, ':', lines[i]);
@@ -30,20 +31,22 @@ const WeatherAnalysisButton = ({ aiData }) => {
       }
     }
     
+    // If no explicit "Weather Analysis" header found, assume it starts at the beginning
     if (startIdx === -1) {
-      console.log('No Weather Analysis header found');
-      return 'Weather analysis section not found in AI response.';
+      console.log('No explicit Weather Analysis header found, checking from start');
+      startIdx = -1; // Will use 0 when slicing
     }
     
     // Find end - look for next section (Gear, Run, or horizontal rule)
-    for (let i = startIdx + 1; i < lines.length; i++) {
+    const searchStart = startIdx === -1 ? 0 : startIdx + 1;
+    for (let i = searchStart; i < lines.length; i++) {
       const line = lines[i].trim().toLowerCase();
       if (
         line.startsWith('##') ||
         line.startsWith('**gear') ||
         line.startsWith('**run') ||
-        line.startsWith('gear recommendation') ||
-        line.startsWith('run strategy') ||
+        line.includes('gear recommendation') ||
+        line.includes('run strategy') ||
         /^\*\*\*+\s*$/.test(line) // horizontal rule
       ) {
         endIdx = i;
@@ -53,15 +56,20 @@ const WeatherAnalysisButton = ({ aiData }) => {
     }
     
     // Extract content
+    const contentStart = startIdx === -1 ? 0 : startIdx + 1;
     const contentLines = endIdx === -1 
-      ? lines.slice(startIdx + 1)
-      : lines.slice(startIdx + 1, endIdx);
+      ? lines.slice(contentStart)
+      : lines.slice(contentStart, endIdx);
     
     const content = contentLines.join('\n').trim();
     console.log('Extracted content length:', content.length);
     console.log('Extracted content preview:', content.substring(0, 200));
     
-    return content || 'Weather analysis section is empty.';
+    if (!content) {
+      return 'Weather analysis section is empty.';
+    }
+    
+    return content;
   };
 
   const weatherAnalysis = extractWeatherAnalysis(aiData);
