@@ -106,31 +106,90 @@ export const generateGearRecommendation = async (promptText) => {
   } catch (error) {
     console.error('Gemini API error:', error);
     
-    // Handle specific error types
-    if (error.message?.includes('API_KEY_INVALID')) {
+    const errorMsg = error.message?.toLowerCase() || '';
+    const errorString = error.toString().toLowerCase();
+    
+    // Handle specific error types with more helpful messages
+    
+    // API Key issues
+    if (errorMsg.includes('api_key_invalid') || errorMsg.includes('invalid api key') || errorMsg.includes('api key not valid')) {
       return {
         success: false,
-        error: 'Invalid API key. Please check your Gemini API key configuration.'
+        error: 'Invalid API key. Please check your Gemini API key in settings.'
       };
     }
     
-    if (error.message?.includes('quota') || error.message?.includes('rate limit')) {
+    // Rate limiting / Quota
+    if (errorMsg.includes('quota') || errorMsg.includes('resource exhausted') || errorMsg.includes('rate limit')) {
       return {
         success: false,
-        error: 'API rate limit reached. Please try again in a moment.'
+        error: 'API quota exceeded. Try again in a few minutes or check your Google AI Studio quota.'
       };
     }
-
-    if (error.message?.includes('network') || error.message?.includes('fetch')) {
+    
+    // Network/Connection issues
+    if (errorMsg.includes('network') || errorMsg.includes('fetch') || errorMsg.includes('timeout') || 
+        errorMsg.includes('econnrefused') || errorMsg.includes('connection') || errorString.includes('typeerror: failed to fetch')) {
       return {
         success: false,
-        error: 'Network error. Please check your connection and try again.'
+        error: 'Network connection error. Check your internet connection and try again.'
       };
     }
-
+    
+    // Model not found / Access issues
+    if (errorMsg.includes('model not found') || errorMsg.includes('not found') || 
+        errorMsg.includes('does not exist') || errorMsg.includes('unsupported')) {
+      return {
+        success: false,
+        error: 'AI model unavailable. This may be a temporary issue - please try again.'
+      };
+    }
+    
+    // Permission/Authorization issues
+    if (errorMsg.includes('permission') || errorMsg.includes('forbidden') || 
+        errorMsg.includes('not authorized') || errorMsg.includes('unauthorized') || errorMsg.includes('403')) {
+      return {
+        success: false,
+        error: 'Access denied. Check your API key permissions in Google AI Studio.'
+      };
+    }
+    
+    // Content filtering / Safety
+    if (errorMsg.includes('safety') || errorMsg.includes('blocked') || errorMsg.includes('content filter')) {
+      return {
+        success: false,
+        error: 'Request blocked by safety filters. Try regenerating with different settings.'
+      };
+    }
+    
+    // Server errors (500s)
+    if (errorMsg.includes('500') || errorMsg.includes('internal server') || errorMsg.includes('service unavailable')) {
+      return {
+        success: false,
+        error: 'Gemini service temporarily unavailable. Please try again in a moment.'
+      };
+    }
+    
+    // Timeout
+    if (errorMsg.includes('timeout') || errorMsg.includes('timed out')) {
+      return {
+        success: false,
+        error: 'Request timed out. The AI is taking too long - please try again.'
+      };
+    }
+    
+    // Response too large
+    if (errorMsg.includes('too large') || errorMsg.includes('payload') || errorMsg.includes('size')) {
+      return {
+        success: false,
+        error: 'Response too large. Try simplifying your request.'
+      };
+    }
+    
+    // Catch-all with more context
     return {
       success: false,
-      error: 'Failed to generate recommendation. Please try again.'
+      error: `AI error: ${error.message || 'Unknown error occurred'}. Please try again.`
     };
   }
 };

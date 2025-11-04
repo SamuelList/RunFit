@@ -125,12 +125,6 @@ const Dashboard = () => {
                                             </div>
                                         )}
                                         
-                                        {aiResult.error && (
-                                            <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4">
-                                                <p className="text-sm text-red-800 dark:text-red-200">{aiResult.error}</p>
-                                            </div>
-                                        )}
-                                        
                                         {!aiResult.loading && aiResult.mapped && aiResult.mapped.length > 0 && (
                                             <motion.div
                                                 key="ai-items"
