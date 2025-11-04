@@ -62,7 +62,7 @@ const TomorrowOutfit = ({
   variant = 'compact',
   cardVariants
 }) => {
-  const [aiResult, setAiResult] = useState({ data: null, mapped: null, loading: false, error: null });
+  const [aiResult, setAiResult] = useState({ data: null, mapped: null, loading: false, error: null, model: null });
   const [info, setInfo] = useState(null);
   const { remainingMs, isReady, startCooldown, COOLDOWN_MS } = useAiCooldown();
 
@@ -250,7 +250,7 @@ const TomorrowOutfit = ({
         mapped = [];
       }
 
-      setAiResult({ data: result.data, mapped, loading: false, error: null });
+      setAiResult({ data: result.data, mapped, loading: false, error: null, model: result.model });
       setTomorrowCardOption('C');
     } else {
       // Do NOT start a new local cooldown here when the server returns a cooldown error.
@@ -455,6 +455,15 @@ const TomorrowOutfit = ({
                   );
                 })}
               </div>
+              
+              {/* Model tag */}
+              {tomorrowCardOption === 'C' && aiResult.model && (
+                <div className="flex justify-end">
+                  <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                    {aiResult.model}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
           {info && (

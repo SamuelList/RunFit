@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Copy, Check } from 'lucide-react';
 import { Button } from './Button';
 
-const AIResultsDisplay = ({ result, loading, error }) => {
+const AIResultsDisplay = ({ result, loading, error, model }) => {
   const [isCopied, setIsCopied] = React.useState(false);
 
   if (!result && !loading && !error) {
@@ -72,6 +72,14 @@ const AIResultsDisplay = ({ result, loading, error }) => {
       {result && (
         <>
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-900 rounded-lg p-4 border border-blue-200 dark:border-slate-700">
+            {/* Model tag */}
+            {model && (
+              <div className="mb-3 flex justify-end">
+                <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                  {model}
+                </span>
+              </div>
+            )}
             <div className="space-y-4 text-sm">
               {sections.gearRecommendation && (
                 <div>

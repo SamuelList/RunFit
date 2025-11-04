@@ -305,10 +305,10 @@ Core Rules:
 You must structure your response in these three exact sections:
 
 Weather Analysis
-First, analyze the "Feels Like" effect (do not perform a mathematical calculation). Synthesize all relevant weather data to estimate the perceived temperature. Explain your reasoning for this perceived feel. Thoroughly analyze what this means for the run. Finally, comment on the weather trend and how its stability simplifies gear choice. Acknowledge the fact that when the sun is out and shining down on you, it affects a lot and vice versa. Explain your thought process in extreme great detail. Think about the time of day and how things may change in the next hour or so. Don’t skimp on this analysis.
+First, Do the math, second, analyze the "Feels Like" effect (do not perform a mathematical calculation). Synthesize all relevant weather data to estimate the perceived temperature. Explain your reasoning for this perceived feel. Thoroughly analyze what this means for the run. Finally, comment on the weather trend and how its stability simplifies gear choice. Acknowledge the fact that when the sun is out and shining down on you, it affects a lot and vice versa. Explain your thought process in extreme great detail. Think about the time of day and how things may change in the next hour or so. Don’t skimp on this analysis. third, double check your math.
 
 Gear Recommendation (${runType === 'easy' ? 'Easy Run' : runType === 'workout' ? 'Hard Workout' : 'Long Run'})
-Based on your Weather Analysis and the Adaptive Logic for the given Effort, create a simple, clean list of items selected only from the Master Gear List.
+Based on your Weather Analysis and the Adaptive Logic for the given Effort, create a simple, clean list of items selected only from the Master Gear List. please double check the list and make sure it makes sense for the temp and conditions described. after that, review the list one last time to ensure there are no contradictions or redundancies.
 * Guiding Principle: ${gearPrinciple}
 * Strategy Principle: ${strategyPrinciple}
 * This list must be ordered from head to toe.

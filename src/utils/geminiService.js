@@ -57,8 +57,8 @@ export const generateGearRecommendation = async (promptText) => {
       const payload = await resp.json();
       console.log('[geminiService] Response payload:', payload);
       if (!resp.ok) return { success: false, error: payload.error || 'Server error', ...(payload.remainingMs ? { remainingMs: payload.remainingMs } : {}) };
-      // Include server 'note' if present (e.g., retried-with-flash)
-      return { success: true, data: payload.data, ...(payload.note ? { note: payload.note } : {}) };
+      // Include server 'note' and 'model' if present
+      return { success: true, data: payload.data, ...(payload.note ? { note: payload.note } : {}), ...(payload.model ? { model: payload.model } : {}) };
     }
 
     // Initialize if not already done (client-side SDK)
@@ -77,7 +77,7 @@ export const generateGearRecommendation = async (promptText) => {
       const result = await model.generateContent(promptText);
       const response = await result.response;
       const text = response.text();
-      return { success: true, data: text };
+      return { success: true, data: text, model: 'gemini-2.5-pro' };
     } catch (e) {
       console.warn('[geminiService] primary model generate failed:', e?.message || e);
 
@@ -94,7 +94,7 @@ export const generateGearRecommendation = async (promptText) => {
           const flashResult = await flashModel.generateContent(promptText);
           const flashResponse = await flashResult.response;
           const flashText = flashResponse.text();
-          return { success: true, data: flashText, note: 'retried-with-flash' };
+          return { success: true, data: flashText, model: 'gemini-2.5-flash', note: 'retried-with-flash' };
         } catch (flashErr) {
           console.error('[geminiService] fallback model also failed:', flashErr);
           // fall through to unified error handler below

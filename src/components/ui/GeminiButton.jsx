@@ -76,7 +76,7 @@ const GeminiButton = ({ derived, wx, unit, gender, runType, tempSensitivity, onR
       }
 
       // Return both raw text and mapped suggestions to the caller for UI review
-      onResultChange?.({ data: result.data, mapped, loading: false });
+      onResultChange?.({ data: result.data, mapped, loading: false, model: result.model });
     } else {
       // If server returned cooldown error, do NOT start a new local cooldown here.
       // Instead, sync local UI to the server-provided remainingMs by calling startCooldown only when the context's polling detects it.

@@ -12,7 +12,7 @@ import WeatherAnalysisButton from './ui/WeatherAnalysisButton';
 import { Sparkles } from 'lucide-react';
 
 const Dashboard = () => {
-    const [aiResult, setAiResult] = useState({ data: null, loading: false, error: null });
+    const [aiResult, setAiResult] = useState({ data: null, loading: false, error: null, model: null });
     const {
         derived,
         wx,
@@ -148,6 +148,15 @@ const Dashboard = () => {
                                                         onClick={() => setSelectedOutfitItem(item.key)}
                                                     />
                                                 ))}
+                                                
+                                                {/* Model tag */}
+                                                {aiResult.model && (
+                                                    <div className="flex justify-end pt-1">
+                                                        <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                                            {aiResult.model}
+                                                        </span>
+                                                    </div>
+                                                )}
                                             </motion.div>
                                         )}
                                             </motion.div>
