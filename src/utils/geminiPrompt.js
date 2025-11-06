@@ -301,26 +301,19 @@ Perform calculations to determine effective temperature:
 Analyze what this means for the run considering sun position and cloud cover.
 
 ## Gear Recommendation
-First, briefly explain your reasoning (effective temp, key factors, gear needs).
+Briefly state your effective temperature and reasoning (2-3 sentences max).
 
-Then list the recommended items, one per line, using exact names from the Master Gear List. Format each item as plain text without bullets, numbers, or explanations. Order from head to toe.
+Then output your gear list with this exact format:
+--- GEAR LIST START ---
+[Item Name 1]
+[Item Name 2]
+[Item Name 3]
+--- GEAR LIST END ---
 
-Example format:
-Short-Sleeve Tech Tee
-Running Shorts
-Light Running Socks
-
-Guiding Principle: ${gearPrinciple}
-Strategy Principle: ${strategyPrinciple}
+Rules: Use exact names from Master Gear List. One item per line. No bullets, numbers, or extra text. Each item must be on its own separate line between the START and END markers.
 
 ## Run Strategy
-Provide a 30-50 word strategy tip for managing this ${runType === 'easy' ? 'easy run' : runType === 'workout' ? 'hard workout' : 'long run'} in these conditions. Explain how the chosen clothing will work effectively
-
-* Guiding Principle: ${gearPrinciple}
-* Strategy Principle: ${strategyPrinciple}
-
-Run Strategy
-In 30-50 words, provide a helpful run strategy tip for an experienced runner based on these specific weather conditions. Incorporate advice on how to manage the "${runType === 'easy' ? 'Easy Run' : runType === 'workout' ? 'Hard Workout' : 'Long Run'}" effort in these conditions at this time. Provide guidance on why the clothing you picked worked and how to use them effectively.
+In 30-50 words, provide a specific strategy tip for managing this ${runType === 'easy' ? 'easy run' : runType === 'workout' ? 'hard workout' : 'long run'} in these conditions. Explain how the chosen clothing will work effectively for this effort level and weather.
 
 `.trim();
 }
@@ -475,26 +468,19 @@ Perform calculations to determine effective temperature:
 Analyze what this means for the run considering sun position, cloud cover, and how conditions may change over time. Be thorough.
 
 ## Gear Recommendation
-First, briefly explain your reasoning (effective temp, key factors, gear needs).
+Briefly state your effective temperature and reasoning (2-3 sentences max).
 
-Then list the recommended items, one per line, using exact names from the Master Gear List. Format each item as plain text without bullets, numbers, or explanations. Order from head to toe.
+Then output your gear list with this exact format:
+--- GEAR LIST START ---
+[Item Name 1]
+[Item Name 2]
+[Item Name 3]
+--- GEAR LIST END ---
 
-Example format:
-Short-Sleeve Tech Tee
-Running Shorts
-Light Running Socks
-
-Guiding Principle: ${gearPrinciple}
-Strategy Principle: ${strategyPrinciple}
+Rules: Use exact names from Master Gear List. One item per line. No bullets, numbers, or extra text. Each item must be on its own separate line between the START and END markers.
 
 ## Run Strategy
-Provide a 30-50 word strategy tip for managing this ${runType === 'easy' ? 'easy run' : runType === 'workout' ? 'hard workout' : 'long run'} in these conditions. Explain how the chosen clothing will work effectively
-
-* Guiding Principle: ${gearPrinciple}
-* Strategy Principle: ${strategyPrinciple}
-
-Run Strategy
-In 30-50 words, provide a helpful run strategy tip for an experienced runner based on these specific weather conditions. Incorporate advice on how to manage the "${runType === 'easy' ? 'Easy Run' : runType === 'workout' ? 'Hard Workout' : 'Long Run'}" effort in these conditions at this time. Provide guidance on why the clothing you picked worked and how to use them effectively.
+In 30-50 words, provide a specific strategy tip for managing this ${runType === 'easy' ? 'easy run' : runType === 'workout' ? 'hard workout' : 'long run'} in these conditions. Explain how the chosen clothing will work effectively for this effort level and weather.
 
 `.trim();
 }

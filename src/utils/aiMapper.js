@@ -267,6 +267,13 @@ export function mapAiOutput(text) {
 function extractGearSection(text) {
   if (!text) return null;
   
+  // First, try to extract using the explicit delimiters
+  const delimiterMatch = text.match(/---\s*GEAR\s+LIST\s+START\s*---\s*(.*?)\s*---\s*GEAR\s+LIST\s+END\s*---/is);
+  if (delimiterMatch && delimiterMatch[1] && delimiterMatch[1].trim().length > 0) {
+    console.log('✓ Found gear section using GEAR LIST delimiters');
+    return delimiterMatch[1].trim();
+  }
+  
   // Try multiple patterns to find gear section with increasing flexibility
   const patterns = [
     // Standard markdown headers with clear section boundaries
