@@ -288,43 +288,33 @@ Gender Considerations:
 - Consider layering preferences and cold sensitivity
 
 3. Required Output Format:
-You must structure your response in these three exact sections:
+Provide your response in these three sections:
 
-Weather Analysis
-You MUST perform mathematical calculations in this section:
-1. Calculate wind chill effect (use formulas or approximations)
-2. Calculate solar radiation impact on perceived temperature
-3. Calculate internal heat generation based on effort level
-4. Sum these factors to determine effective temperature
-5. Show your numerical work and reasoning
+## Weather Analysis
+Perform calculations to determine effective temperature:
+- Calculate wind chill effect on perceived temperature
+- Calculate solar radiation impact (if sun is above horizon)
+- Calculate internal heat generation from effort level
+- Sum these factors for final effective temperature
+- Show your work with numbers
 
-Then analyze what this calculated effective temperature means for the run. Acknowledge how sun position and cloud cover affect thermal comfort.
+Analyze what this means for the run considering sun position and cloud cover.
 
-Gear Recommendation (${runType === 'easy' ? 'Easy Run' : runType === 'workout' ? 'Hard Workout' : 'Long Run'})
-IMPORTANT: This section has TWO parts:
+## Gear Recommendation
+First, briefly explain your reasoning (effective temp, key factors, gear needs).
 
-Part A - Your Reasoning (brief internal notes):
-- State effective temperature after adjustments
-- Note key factors (wind, sun, humidity, rain)
-- Identify gear categories needed
+Then list the recommended items, one per line, using exact names from the Master Gear List. Format each item as plain text without bullets, numbers, or explanations. Order from head to toe.
 
-Part B - Final Gear List:
-After your reasoning, output the final list of items EXACTLY like this format:
-
-Running Shorts
+Example format:
 Short-Sleeve Tech Tee
+Running Shorts
 Light Running Socks
-Sunglasses
-Sunscreen
 
-CRITICAL RULES for the final list:
-- Each item on its own line
-- Use EXACT names from Master Gear List
-- NO bullets, dashes, numbers, or symbols
-- NO explanations or parenthetical notes
-- NO categories or headers
-- Ordered head to toe
-- Only include items you're recommending
+Guiding Principle: ${gearPrinciple}
+Strategy Principle: ${strategyPrinciple}
+
+## Run Strategy
+Provide a 30-50 word strategy tip for managing this ${runType === 'easy' ? 'easy run' : runType === 'workout' ? 'hard workout' : 'long run'} in these conditions. Explain how the chosen clothing will work effectively
 
 * Guiding Principle: ${gearPrinciple}
 * Strategy Principle: ${strategyPrinciple}
@@ -471,44 +461,34 @@ Gender Considerations:
 - Consider layering preferences and cold sensitivity
 
 3. Required Output Format:
-You must structure your response in these three exact sections:
+Provide your response in these three sections:
 
-Weather Analysis
-You MUST perform mathematical calculations in this section:
-1. Calculate wind chill effect (use formulas or approximations)
-2. Calculate solar radiation impact on perceived temperature
-3. Calculate internal heat generation based on effort level
-4. Sum these factors to determine effective temperature
-5. Show your numerical work and reasoning
-6. Comment on weather trend and its implications
+## Weather Analysis
+Perform calculations to determine effective temperature:
+- Calculate wind chill effect on perceived temperature
+- Calculate solar radiation impact (if sun is above horizon)
+- Calculate internal heat generation from effort level
+- Sum these factors for final effective temperature
+- Show your work with numbers
+- Comment on weather trend implications
 
-Then analyze what this calculated effective temperature means for the run. Acknowledge how sun position and cloud cover affect thermal comfort. Think about the time of day and how conditions may change. Be thorough and detailed in your analysis.
+Analyze what this means for the run considering sun position, cloud cover, and how conditions may change over time. Be thorough.
 
-Gear Recommendation (${runType === 'easy' ? 'Easy Run' : runType === 'workout' ? 'Hard Workout' : 'Long Run'})
-IMPORTANT: This section has TWO parts:
+## Gear Recommendation
+First, briefly explain your reasoning (effective temp, key factors, gear needs).
 
-Part A - Your Reasoning (brief internal notes):
-- State effective temperature after adjustments
-- Note key factors (wind, sun, humidity, rain)
-- Identify gear categories needed
+Then list the recommended items, one per line, using exact names from the Master Gear List. Format each item as plain text without bullets, numbers, or explanations. Order from head to toe.
 
-Part B - Final Gear List:
-After your reasoning, output the final list of items EXACTLY like this format:
-
-Running Shorts
+Example format:
 Short-Sleeve Tech Tee
+Running Shorts
 Light Running Socks
-Sunglasses
-Sunscreen
 
-CRITICAL RULES for the final list:
-- Each item on its own line
-- Use EXACT names from Master Gear List
-- NO bullets, dashes, numbers, or symbols
-- NO explanations or parenthetical notes
-- NO categories or headers
-- Ordered head to toe
-- Only include items you're recommending
+Guiding Principle: ${gearPrinciple}
+Strategy Principle: ${strategyPrinciple}
+
+## Run Strategy
+Provide a 30-50 word strategy tip for managing this ${runType === 'easy' ? 'easy run' : runType === 'workout' ? 'hard workout' : 'long run'} in these conditions. Explain how the chosen clothing will work effectively
 
 * Guiding Principle: ${gearPrinciple}
 * Strategy Principle: ${strategyPrinciple}

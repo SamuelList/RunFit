@@ -513,7 +513,7 @@ export function outfitFor({ apparentF, humidity, windMph, precipProb, precipIn, 
     if (coldHands) cozyTags.add('mittens_liner');
   }
   if (effectiveT < 33 || windMph >= 18) cozy.add('neck_gaiter');
-  if (gender === 'Male' && adjT >= 70) cozy.add('short_sleeve');
+  if (gender === 'Male' && adjT >= 70 && !cozy.has('tank_top')) cozy.add('short_sleeve');
 
   const sockLevel = chooseSocks({ apparentF: T, precipIn, precipProb, windMph, humidity });
   [
