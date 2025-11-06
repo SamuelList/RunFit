@@ -200,8 +200,7 @@ Core Rules:
 1. Input Data:
 * Timestamp: ${timestamp}${currentLocation ? `\n* Location: ${currentLocation}` : ''}
 * Weather (Forecast Hour):
-    * Air Temp: ${adjustedTemp.toFixed(1)}°${unit}
-    * Feels Like: ${adjustedApparent.toFixed(1)}°${unit}
+    * Air Temp: ${adjustedTemp.toFixed(1)}°${unit}${solarStatus === 'Above Horizon' ? `\n    * UTCI: ${adjustedApparent.toFixed(1)}°${unit}` : ''}
     * Dew Point: ${dewPointDisplay.toFixed(1)}°${unit}
     * Humidity: ${humidity.toFixed(0)}%
     * Wind: ${windMph.toFixed(1)} mph
@@ -217,18 +216,109 @@ Core Rules:
 * Master Gear List (Choose only from these items):
     * ${MASTER_GEAR_LIST}
 
-2. Required Output Format:
+2. Layering Logic Framework:
+You must reason through gear selection using these principles, not follow prescriptive templates:
+
+Core Principle: Runners generate significant body heat during activity. The primary goal is to START slightly cool (not comfortable standing still) because body temperature will rise 10-20°F within 10-15 minutes of running.
+
+Physiological Heat Generation by Effort:
+- Easy Run: Moderate heat generation (~15°F internal warming)
+- Hard Workout: High heat generation (~20°F internal warming)
+- Long Run: Sustained moderate heat generation (similar to easy, but must prevent chafing)
+
+Environmental Factors Analysis:
+
+Wind Effect:
+- Wind increases convective heat loss exponentially
+- Each 10 mph of wind can make it feel 5-10°F colder
+- Wind penetrates gaps between layers and through fabric weave
+- Question to answer: "Will wind overwhelm the insulation I'm choosing?"
+
+Solar Radiation Effect:
+- Direct sun can add 5-15°F to perceived temperature depending on intensity
+- Dark clothing absorbs more heat; light clothing reflects it
+- Solar radiation only matters when sun is above horizon
+- Question to answer: "Is the sun strong enough to compensate for one less layer?"
+
+Humidity Effect:
+- High humidity (>70%) impairs evaporative cooling
+- Makes warm conditions feel hotter and requires more breathable fabrics
+- Low humidity (<30%) enhances evaporative cooling
+- Question to answer: "Will sweat evaporate effectively or trap heat?"
+
+Precipitation Effect:
+- Rain dramatically increases heat loss through wet fabric
+- Wet clothing loses ~90% of insulation value
+- Wind + rain = extreme heat loss
+- Question to answer: "Do I need a waterproof shell to maintain core temp?"
+
+Gear Selection Reasoning Process:
+
+1. Calculate Effective Temperature:
+   - Start with air temperature
+   - Add internal heat generation based on effort level
+   - Subtract for wind chill (stronger wind = colder feel)
+   - Add for solar radiation (sun above horizon = warmer feel)
+   - Adjust for humidity (high = warmer, low = cooler)
+
+2. Determine Base Layer Coverage:
+   - Ask: "What skin coverage is needed for this effective temperature?"
+   - Extremities (hands, head, ears) lose heat disproportionately
+   - Consider: shorts vs tights, short sleeve vs long sleeve
+
+3. Determine Insulation Needs:
+   - Ask: "How much trapped air do I need to maintain warmth?"
+   - More layers = more trapped air = more insulation
+   - Consider: single layer, base + jacket, multiple layers
+
+4. Determine Wind/Rain Protection:
+   - Ask: "Do I need a shell to block wind or rain?"
+   - Shells block convective heat loss but reduce breathability
+
+5. Verify Against Overdressing:
+   - Critical check: "Will I overheat after 15 minutes?"
+   - If in doubt, choose less rather than more
+   - Remember: You can always run faster to warm up, but can't easily cool down
+
+Gender Considerations:
+- Female runners often prefer slightly more coverage in cold conditions
+- Sports bra + tank = equivalent to male tank
+- Consider layering preferences and cold sensitivity
+
+3. Required Output Format:
 You must structure your response in these three exact sections:
 
 Weather Analysis
-First, analyze the "Feels Like" effect (do not perform a mathematical calculation). Synthesize all relevant weather data to estimate the perceived temperature. Explain your reasoning for this perceived feel. Thoroughly analyze what this means for the run. Acknowledge the fact that when the sun is out and shining down on you, it affects a lot and vice versa.
+First, analyze the "Feels Like" effect. Synthesize all relevant weather data to estimate the perceived temperature. Explain your reasoning for this perceived feel. Thoroughly analyze what this means for the run. Acknowledge the fact that when the sun is out and shining down on you, it affects a lot and vice versa.
 
 Gear Recommendation (${runType === 'easy' ? 'Easy Run' : runType === 'workout' ? 'Hard Workout' : 'Long Run'})
-Based on your Weather Analysis and the Adaptive Logic for the given Effort, create a simple, clean list of items selected only from the Master Gear List.
+IMPORTANT: This section has TWO parts:
+
+Part A - Your Reasoning (brief internal notes):
+- State effective temperature after adjustments
+- Note key factors (wind, sun, humidity, rain)
+- Identify gear categories needed
+
+Part B - Final Gear List:
+After your reasoning, output the final list of items EXACTLY like this format:
+
+Running Shorts
+Short-Sleeve Tech Tee
+Light Running Socks
+Sunglasses
+Sunscreen
+
+CRITICAL RULES for the final list:
+- Each item on its own line
+- Use EXACT names from Master Gear List
+- NO bullets, dashes, numbers, or symbols
+- NO explanations or parenthetical notes
+- NO categories or headers
+- Ordered head to toe
+- Only include items you're recommending
+
 * Guiding Principle: ${gearPrinciple}
 * Strategy Principle: ${strategyPrinciple}
-* This list must be ordered from head to toe.
-* Do not include any extra text, explanations, or bullet points in this section—just the list of item names.
 
 Run Strategy
 In 30-50 words, provide a helpful run strategy tip for an experienced runner based on these specific weather conditions. Incorporate advice on how to manage the "${runType === 'easy' ? 'Easy Run' : runType === 'workout' ? 'Hard Workout' : 'Long Run'}" effort in these conditions at this time. Provide guidance on why the clothing you picked worked and how to use them effectively.
@@ -282,8 +372,7 @@ Core Rules:
 1. Input Data:
 * Timestamp: ${timestamp}
 * Weather (Current):
-    * Air Temp: ${adjustedTemp.toFixed(1)}°${unit}
-    * RealFeel: ${derived.utci?.toFixed(1)}°${unit}
+    * Air Temp: ${adjustedTemp.toFixed(1)}°${unit}${solarStatus === 'Above Horizon' ? `\n    * RealFeel: ${derived.utci?.toFixed(1)}°${unit}` : ''}
     * Dew Point: ${derived.dewPointDisplay?.toFixed(1)}°${unit}
     * Humidity: ${wx.humidity?.toFixed(0)}%
     * Wind: ${wx.wind?.toFixed(1)} mph
@@ -301,18 +390,109 @@ Core Rules:
 * Master Gear List (Choose only from these items):
     * ${MASTER_GEAR_LIST}
 
-2. Required Output Format:
+2. Layering Logic Framework:
+You must reason through gear selection using these principles, not follow prescriptive templates:
+
+Core Principle: Runners generate significant body heat during activity. The primary goal is to START slightly cool (not comfortable standing still) because body temperature will rise 10-20°F within 10-15 minutes of running.
+
+Physiological Heat Generation by Effort:
+- Easy Run: Moderate heat generation (~15°F internal warming)
+- Hard Workout: High heat generation (~20°F internal warming)
+- Long Run: Sustained moderate heat generation (similar to easy, but must prevent chafing)
+
+Environmental Factors Analysis:
+
+Wind Effect:
+- Wind increases convective heat loss exponentially
+- Each 10 mph of wind can make it feel 5-10°F colder
+- Wind penetrates gaps between layers and through fabric weave
+- Question to answer: "Will wind overwhelm the insulation I'm choosing?"
+
+Solar Radiation Effect:
+- Direct sun can add 5-15°F to perceived temperature depending on intensity
+- Dark clothing absorbs more heat; light clothing reflects it
+- Solar radiation only matters when sun is above horizon
+- Question to answer: "Is the sun strong enough to compensate for one less layer?"
+
+Humidity Effect:
+- High humidity (>70%) impairs evaporative cooling
+- Makes warm conditions feel hotter and requires more breathable fabrics
+- Low humidity (<30%) enhances evaporative cooling
+- Question to answer: "Will sweat evaporate effectively or trap heat?"
+
+Precipitation Effect:
+- Rain dramatically increases heat loss through wet fabric
+- Wet clothing loses ~90% of insulation value
+- Wind + rain = extreme heat loss
+- Question to answer: "Do I need a waterproof shell to maintain core temp?"
+
+Gear Selection Reasoning Process:
+
+1. Calculate Effective Temperature:
+   - Start with air temperature
+   - Add internal heat generation based on effort level
+   - Subtract for wind chill (stronger wind = colder feel)
+   - Add for solar radiation (sun above horizon = warmer feel)
+   - Adjust for humidity (high = warmer, low = cooler)
+
+2. Determine Base Layer Coverage:
+   - Ask: "What skin coverage is needed for this effective temperature?"
+   - Extremities (hands, head, ears) lose heat disproportionately
+   - Consider: shorts vs tights, short sleeve vs long sleeve
+
+3. Determine Insulation Needs:
+   - Ask: "How much trapped air do I need to maintain warmth?"
+   - More layers = more trapped air = more insulation
+   - Consider: single layer, base + jacket, multiple layers
+
+4. Determine Wind/Rain Protection:
+   - Ask: "Do I need a shell to block wind or rain?"
+   - Shells block convective heat loss but reduce breathability
+
+5. Verify Against Overdressing:
+   - Critical check: "Will I overheat after 15 minutes?"
+   - If in doubt, choose less rather than more
+   - Remember: You can always run faster to warm up, but can't easily cool down
+
+Gender Considerations:
+- Female runners often prefer slightly more coverage in cold conditions
+- Sports bra + tank = equivalent to male tank
+- Consider layering preferences and cold sensitivity
+
+3. Required Output Format:
 You must structure your response in these three exact sections:
 
 Weather Analysis
-First, Do the math, second, analyze the "Feels Like" effect (do not perform a mathematical calculation). Synthesize all relevant weather data to estimate the perceived temperature. Explain your reasoning for this perceived feel. Thoroughly analyze what this means for the run. Finally, comment on the weather trend and how its stability simplifies gear choice. Acknowledge the fact that when the sun is out and shining down on you, it affects a lot and vice versa. Explain your thought process in extreme great detail. Think about the time of day and how things may change in the next hour or so. Don’t skimp on this analysis. third, double check your math.
+First, Do the math, second, analyze the "Feels Like" effect (do not perform a mathematical calculation). Synthesize all relevant weather data to estimate the perceived temperature. Explain your reasoning for this perceived feel. Thoroughly analyze what this means for the run. Finally, comment on the weather trend and how its stability simplifies gear choice. Acknowledge the fact that when the sun is out and shining down on you, it affects a lot and vice versa. Explain your thought process in extreme great detail. Think about the time of day and how things may change in the next hour or so. Don't skimp on this analysis. third, double check your math.
 
 Gear Recommendation (${runType === 'easy' ? 'Easy Run' : runType === 'workout' ? 'Hard Workout' : 'Long Run'})
-Based on your Weather Analysis and the Adaptive Logic for the given Effort, create a simple, clean list of items selected only from the Master Gear List. please double check the list and make sure it makes sense for the temp and conditions described. after that, review the list one last time to ensure there are no contradictions or redundancies.
+IMPORTANT: This section has TWO parts:
+
+Part A - Your Reasoning (brief internal notes):
+- State effective temperature after adjustments
+- Note key factors (wind, sun, humidity, rain)
+- Identify gear categories needed
+
+Part B - Final Gear List:
+After your reasoning, output the final list of items EXACTLY like this format:
+
+Running Shorts
+Short-Sleeve Tech Tee
+Light Running Socks
+Sunglasses
+Sunscreen
+
+CRITICAL RULES for the final list:
+- Each item on its own line
+- Use EXACT names from Master Gear List
+- NO bullets, dashes, numbers, or symbols
+- NO explanations or parenthetical notes
+- NO categories or headers
+- Ordered head to toe
+- Only include items you're recommending
+
 * Guiding Principle: ${gearPrinciple}
 * Strategy Principle: ${strategyPrinciple}
-* This list must be ordered from head to toe.
-* Do not include any extra text, explanations, or bullet points in this section—just the list of item names.
 
 Run Strategy
 In 30-50 words, provide a helpful run strategy tip for an experienced runner based on these specific weather conditions. Incorporate advice on how to manage the "${runType === 'easy' ? 'Easy Run' : runType === 'workout' ? 'Hard Workout' : 'Long Run'}" effort in these conditions at this time. Provide guidance on why the clothing you picked worked and how to use them effectively.
