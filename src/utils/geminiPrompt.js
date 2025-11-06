@@ -190,12 +190,14 @@ export function buildHourPrompt({ hourData, unit = 'F', gender = 'Male', runType
 
   return `
 
-Role and Goal: Act as an expert running coach. Your task is to provide a gear recommendation and run strategy based only on the data I provide.
+Role and Goal: Act as an expert running coach. Your task is to provide a gear recommendation and run strategy based on the data I provide.
+
 Core Rules:
-1. Use only the data provided in the "Input Data" section.
-2. Do not use any external tools, web searches, or real-time data.
-3. Your response must be based on reasoning and inference from the provided data alone.
-4. Adhere strictly to the "Required Output Format." 
+1. Use the data provided in the "Input Data" section as your primary source.
+2. You may use any available tools (including code execution, calculations, etc.) to analyze the data.
+3. Perform explicit mathematical calculations to determine effective temperature and thermal needs.
+4. Show your work - calculate wind chill effects, solar radiation impact, and heat generation.
+5. Adhere strictly to the "Required Output Format." 
 
 1. Input Data:
 * Timestamp: ${timestamp}${currentLocation ? `\n* Location: ${currentLocation}` : ''}
@@ -289,7 +291,14 @@ Gender Considerations:
 You must structure your response in these three exact sections:
 
 Weather Analysis
-First, analyze the "Feels Like" effect. Synthesize all relevant weather data to estimate the perceived temperature. Explain your reasoning for this perceived feel. Thoroughly analyze what this means for the run. Acknowledge the fact that when the sun is out and shining down on you, it affects a lot and vice versa.
+You MUST perform mathematical calculations in this section:
+1. Calculate wind chill effect (use formulas or approximations)
+2. Calculate solar radiation impact on perceived temperature
+3. Calculate internal heat generation based on effort level
+4. Sum these factors to determine effective temperature
+5. Show your numerical work and reasoning
+
+Then analyze what this calculated effective temperature means for the run. Acknowledge how sun position and cloud cover affect thermal comfort.
 
 Gear Recommendation (${runType === 'easy' ? 'Easy Run' : runType === 'workout' ? 'Hard Workout' : 'Long Run'})
 IMPORTANT: This section has TWO parts:
@@ -362,12 +371,14 @@ export function buildGeminiPrompt({ derived, wx, unit = 'F', gender = 'Male', ru
 
   return `
 
-Role and Goal: Act as an expert running coach. Your task is to provide a gear recommendation and run strategy based only on the data I provide.
+Role and Goal: Act as an expert running coach. Your task is to provide a gear recommendation and run strategy based on the data I provide.
+
 Core Rules:
-1. Use only the data provided in the "Input Data" section.
-2. Use any external tools, web searches, or real-time data.
-3. Your response must be based on reasoning and inference from the provided data alone.
-4. Adhere strictly to the "Required Output Format." 
+1. Use the data provided in the "Input Data" section as your primary source.
+2. You may use any available tools (including code execution, calculations, etc.) to analyze the data.
+3. Perform explicit mathematical calculations to determine effective temperature and thermal needs.
+4. Show your work - calculate wind chill effects, solar radiation impact, and heat generation.
+5. Adhere strictly to the "Required Output Format." 
 
 1. Input Data:
 * Timestamp: ${timestamp}
@@ -463,7 +474,15 @@ Gender Considerations:
 You must structure your response in these three exact sections:
 
 Weather Analysis
-First, Do the math, second, analyze the "Feels Like" effect (do not perform a mathematical calculation). Synthesize all relevant weather data to estimate the perceived temperature. Explain your reasoning for this perceived feel. Thoroughly analyze what this means for the run. Finally, comment on the weather trend and how its stability simplifies gear choice. Acknowledge the fact that when the sun is out and shining down on you, it affects a lot and vice versa. Explain your thought process in extreme great detail. Think about the time of day and how things may change in the next hour or so. Don't skimp on this analysis. third, double check your math.
+You MUST perform mathematical calculations in this section:
+1. Calculate wind chill effect (use formulas or approximations)
+2. Calculate solar radiation impact on perceived temperature
+3. Calculate internal heat generation based on effort level
+4. Sum these factors to determine effective temperature
+5. Show your numerical work and reasoning
+6. Comment on weather trend and its implications
+
+Then analyze what this calculated effective temperature means for the run. Acknowledge how sun position and cloud cover affect thermal comfort. Think about the time of day and how conditions may change. Be thorough and detailed in your analysis.
 
 Gear Recommendation (${runType === 'easy' ? 'Easy Run' : runType === 'workout' ? 'Hard Workout' : 'Long Run'})
 IMPORTANT: This section has TWO parts:
