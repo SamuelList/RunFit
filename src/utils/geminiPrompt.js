@@ -391,8 +391,8 @@ You must reason through gear selection using these principles, not follow prescr
 Core Principle: Runners generate significant body heat during activity. The primary goal is to START slightly cool (not comfortable standing still) because body temperature will rise 10-20°F within 10-15 minutes of running.
 
 Physiological Heat Generation by Effort:
-- Easy Run: Moderate heat generation (~15°F internal warming)
-- Hard Workout: High heat generation (~20°F internal warming)
+- Easy Run: Moderate heat generation (~10°F internal warming)
+- Hard Workout: High heat generation (~15°F internal warming)
 - Long Run: Sustained moderate heat generation (similar to easy, but must prevent chafing)
 
 Environmental Factors Analysis:
